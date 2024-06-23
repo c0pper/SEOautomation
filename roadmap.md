@@ -2,9 +2,58 @@ Writing an SEO-efficient article involves several key steps, which can be broadl
 1. Research
 Keyword Research
 
-    Identify Main Keywords: Use tools like Google Keyword Planner, Ahrefs, or SEMrush to find relevant keywords.
-    Analyze Search Intent: Understand what users are looking for when they search for your keywords.
-    Long-Tail Keywords: Find longer, more specific keyword phrases with lower competition.
+    Get day trends: SerpAPI / Scraping
+        Search news for trend
+        Get topics based on news results
+        Extract Keywords from topics
+            Get articles with traffic threshold
+            Get keywords from sample articles
+    Define outline based on keywords
+    Fill each outline paragraph
+        Search web for content related to paragraph
+    Write introduction and conclusion
+    Revise paragraph to inlcude keywords and links
+
+
+
+    General Guidelines for Long-Tail Keywords in an SEO-Efficient Article
+
+        Primary Keyword: Focus on one main keyword or key phrase that is highly relevant to your article’s topic.
+
+        Secondary Keywords: Include 3-5 secondary keywords that are closely related to your primary keyword. These can be variations or related terms that also have significant search volume and relevance.
+
+        Long-Tail Keywords: Incorporate 5-10 long-tail keywords. These are more specific phrases usually containing three or more words. They often have lower search volumes but higher intent and lower competition.
+
+        Factors to Consider
+
+            Content Length:
+                Short Articles (500-1000 words): Aim for 5-10 long-tail keywords.
+                Medium Articles (1000-2000 words): Aim for 10-15 long-tail keywords.
+                Long Articles (2000+ words): Aim for 15-20 long-tail keywords.
+
+            Content Depth:
+                If your article is very comprehensive and covers a topic in great detail, you can include more long-tail keywords.
+                For narrower topics, fewer long-tail keywords may be more appropriate.
+
+            Relevance:
+                Ensure all keywords are relevant to the content. Don’t force keywords that don’t fit naturally.
+                Keyword stuffing (using too many keywords) can hurt your SEO efforts. Focus on quality and relevance over quantity.
+
+        Example Approach
+
+            Primary Keyword: “SEO efficient article”
+            Secondary Keywords: “SEO article tips”, “optimize SEO content”, “SEO article writing”
+            Long-Tail Keywords:
+                “how to write an SEO efficient article”
+                “best practices for SEO article writing”
+                “step-by-step guide to SEO content”
+                “optimize articles for search engines”
+                “increase website traffic with SEO articles”
+                “SEO content writing tips for beginners”
+                “advanced SEO techniques for articles”
+                “SEO article checklist”
+                “how to research keywords for SEO articles”
+                “importance of long-tail keywords in SEO”
 
 Competitor Analysis
 
