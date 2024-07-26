@@ -4,7 +4,12 @@ from typing import List
 from pydantic import BaseModel, Field
 from topics import chosen_topic
 from utililty import use_component
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
 
+
+
+model = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0)
 
 class PrimaryKeyword(BaseModel):
     """ primary keyword is the central term or phrase that best represents the main topic of a piece of content."""
@@ -12,20 +17,21 @@ class PrimaryKeyword(BaseModel):
     keyword: str = Field(description="The primary keyword")
 
 class PrimaryKeywordGenerator(BaseModel):
-    """A component responsible for generating a primary keyword for an article starting from a list of related articles."""
+    # """A component responsible for generating a primary keyword for an article starting from a list of related articles."""
 
     primary_keyword: PrimaryKeyword = Field(
         description="The generated primary keyword"
     )
-
-    @classmethod
-    def get_system_prompt(cls) -> str:
-        return """You are a primary keyword generator. You will generate a primary keyword to guide the writing of an SEO-efficient article starting from a list of articles"""
     
-    @classmethod
-    def get_user_prompt(cls):
-        return """"Articles list:\n\n {articles}"""
-    
+primary_keyword_gen_system = """You are a primary keyword generator. You will generate a primary keyword to guide the writing of an SEO-efficient article starting from a list of articles."""
+primary_keyword_gen_human = """Articles:\n\n {articles}"""
+primary_keyword_gen_template = ChatPromptTemplate.from_messages(
+    [
+        ("system", primary_keyword_gen_system),
+        ("human", primary_keyword_gen_human)
+    ]
+)
+  
 
 class SecondaryKeyword(BaseModel):
     """A secondary keyword is a term or phrase that is related to the primary keyword and supports the main topic of your content. It's used to cover subtopics, provide additional context, and enhance the overall relevancy of the content. While they are not the main focus of the article, secondary keywords help to capture additional search traffic and improve the depth and breadth of the content."""
@@ -86,7 +92,11 @@ class LongtailKeywordsGenerator(BaseModel):
 
 pk_articles = chosen_topic.articles
 formatted_articles = "\n----\n".join([f'Title: {a.title}\nSnippet: {a.snippet}' for a in pk_articles])
-pk = use_component(PrimaryKeywordGenerator, {"articles": formatted_articles})
+structured_llm = model.with_structured_output(PrimaryKeywordGenerator)
+generator = primary_keyword_gen_template | structured_llm
+generated_topics = generator.invoke({"articles": formatted_articles})
+
+pk = use_component(PrimaryKeywordGenerator, {"articles": formatted_articles}, human_prompt=pk_human)
 print(f"Primary keyword:{pk}")
 
 sec_keys = use_component(

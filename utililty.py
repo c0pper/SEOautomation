@@ -32,7 +32,7 @@ from readability.readability import Document as Paper
 import nltk
 import spacy
 nltk.download('punkt')
-from serpapi import GoogleSearch
+import serpapi
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 import os
@@ -51,23 +51,27 @@ def search_google(query, gl="it", hl="it", search_type=None):
     "tbm": search_type #nws: Google News API,
   }
 
-  search = GoogleSearch(params)
+  search = serpapi.GoogleSearch(params)
   search = search.get_dict()
   return search
 
 
-def use_component(component_cls, input_dict:dict, llm=ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0.5), human_prompt=None):
+def use_component(component_cls, input_dict:dict, llm=ChatOpenAI(model="gpt-4o-mini", temperature=0), system_prompt=None, human_prompt_template=None):
     structured_llm = llm.with_structured_output(component_cls)
-    if not human_prompt:
-        human_prompt = component_cls.get_user_prompt()
+    if not human_prompt_template:
+        human_prompt_template = component_cls.get_user_prompt()
 
 
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", component_cls.get_system_prompt()),
-            ("human", human_prompt)
+            ("system", system_prompt),
+            ("human", human_prompt_template)
         ]
     )
+    # prompt = [
+    #     ("system", component_cls.get_system_prompt()),
+    #     ("human", human_prompt)
+    # ]
     # system_msg = prompt.messages[0].prompt
     # user_msg = prompt.messages[1].prompt.format(input_dict)
     # print(system_msg)
@@ -75,6 +79,7 @@ def use_component(component_cls, input_dict:dict, llm=ChatOpenAI(model="gpt-3.5-
     # print(f"\n\n######## PROMPT\nSystem: {system_msg}\nUser: {user_msg}\nTotal len: {len(system_msg)+len(user_msg)}########\n\n")
     generator = prompt | structured_llm
     result = generator.invoke(input_dict)
+    # result = structured_llm.invoke(prompt)
     return result
 
 
