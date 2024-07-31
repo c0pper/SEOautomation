@@ -16,9 +16,12 @@
 
 import re
 from typing import Dict
+from guardrails import Guard
+from guardrails.hub import ValidJson
 import pytz
 import datetime
 import platform
+import json
 
 
 ###################################
@@ -199,6 +202,48 @@ def text_getter(url: str) -> Dict:
 
     done[url] = answer
     yield answer
+    
+    
+def _fix_json(invalid_json, errors: list):
+    # errors coming from guardrails
+    # example: guard = Guard().use(ValidJson, on_fail=fix_json)
+    
+    
+    model = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0)
+    
+    if errors:
+        nl = "\n"
+        error_messages = nl.join([f"- {e.error_message}" for e in errors])
+        errors_str = f"### Error messages\n{error_messages}"
+    else:
+        errors_str = f"### Error messages\nNot available"
+    
+    human_msg = f"### Invalid json\n{invalid_json}\n\n\n{errors_str}\n\n\nBased on the above information, fix the invalid json and return a string that can be parsed in python."
+    messages = [
+        ("system", "You are a master JSON programmer."),
+        ("human", human_msg)
+    ]
+    response = model.invoke(messages).content
+    return response
+
+
+def json_fixer(json_from_llm):
+    guard = Guard().use(ValidJson, on_fail=_fix_json)
+    is_valid = False
+    valid_json = ""
+
+    while not is_valid:
+        validation = guard.parse(json_from_llm)
+        # validation.validated_output = '```json\n{\n    "primary_keyword": "Flood watch alert"\n}\n```'
+        valid_json = validation.validated_output.replace("```json", "").replace("```", "").strip()
+        try: 
+            json.loads(valid_json)
+            is_valid = validation.validation_passed
+        except:
+            is_valid = False
+    # print("Good JSON!\n", json.loads(valid_json))
+    return json.loads(valid_json)
+
 
 if __name__ == "__main__":
     print(list(text_getter("https://www.manchestereveningnews.co.uk/whats-on/music-nightlife-news/pearl-jam-tickets-manchester-29410579")))
