@@ -22,7 +22,7 @@ class Article(BaseModel):
 
 class TopicsGenerator():
     schema = """### Insutrctions
-    Based on the above articles, generate a list of topics adhering to the following json schema:
+    Based on the above articles, generate a **list** of topics adhering to the following json schema:
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "NewsClusterer",
@@ -52,7 +52,7 @@ class TopicsGenerator():
     "Topic": {
       "type": "object",
       "properties": {
-        "topic": {
+        "name": {
           "type": "string",
           "description": "The topic name"
         },
@@ -91,7 +91,7 @@ def get_topics(state):
             snippet=' '.join(n['summary'].split()[:50])+"..." if n['summary'] else ' '.join(n['text'].split()[:50])+"...",
             summary=n["summary"])
         for n in processed_news_results]
-
+    
     news_articles_shortened = [Article(
             title=n['title'],
             link="",
@@ -119,7 +119,7 @@ def get_topics(state):
 
     if len (topics["topics"]) > 1:
         for idx, topic in enumerate(topics["topics"]):
-            print(f"{idx}. Topic: {topic.topic}")
+            print(f"{idx}. Topic: {topic['name']}")
             for art in topic["articles"]:
                 print(f"\tArt title: {art.title}")
                 print(f"\tArt snippet: {art.snippet}")
@@ -127,12 +127,12 @@ def get_topics(state):
                 print(f"\t--------------------------------")
         selected_index = 0 #int(input("Please select a topic by typing the number corresponding to the index: "))
         chosen_topic = topics["topics"][selected_index]
-        print(f"\nYou selected query: {chosen_topic['topic']}")
+        print(f"\nYou selected query: {chosen_topic['name']}")
         state["topic"] = chosen_topic
         return state
     else:
         chosen_topic = topics["topics"][0]
-        print(f"\nOne topic generated: {chosen_topic['topic']}")
+        print(f"\nOne topic generated: {chosen_topic['name']}")
         for art in chosen_topic["articles"]:
             print(f"\tArt title: {art.title}")
             print(f"\tArt snippet: {art.snippet}")
