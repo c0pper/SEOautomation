@@ -4,12 +4,10 @@ from colorama import Fore
 from langchain_openai import ChatOpenAI
 from langchain_core.pydantic_v1 import BaseModel, Field
 from trend import get_news_for_trend, ask_trend, get_trends
-from utililty import json_fixer
+from utililty import json_fixer, model
 from langchain_core.prompts import ChatPromptTemplate
 
 
-
-model = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0)
     
 class Article(BaseModel):
     link: Union[str|None]
@@ -83,25 +81,47 @@ def get_topics(state):
     print(Fore.LIGHTBLUE_EX + f'[+] Getting topics for trend {trend}')
     
     processed_news_results = state['chosen_trend']['processed_news']
-    news_articles = [Article(
-            title=n['title'],
-            link=n['url'],
-            source=n['provider'],
-            date=n['published_date'],
-            snippet=' '.join(n['summary'].split()[:50])+"..." if n['summary'] else ' '.join(n['text'].split()[:50])+"...",
-            summary=n["summary"])
-        for n in processed_news_results]
+    news_articles = [
+      {
+          "title": n['title'],
+          "link": n['url'],
+          "source": n['provider'],
+          "date": n['published_date'],
+          "snippet": ' '.join(n['summary'].split()[:50]) + "..." if n['summary'] else ' '.join(n['text'].split()[:50]) + "...",
+          "summary": n["summary"]
+      }
+      for n in processed_news_results
+    ]
+    # news_articles = [Article(
+    #         title=n['title'],
+    #         link=n['url'],
+    #         source=n['provider'],
+    #         date=n['published_date'],
+    #         snippet=' '.join(n['summary'].split()[:50])+"..." if n['summary'] else ' '.join(n['text'].split()[:50])+"...",
+    #         summary=n["summary"])
+    #     for n in processed_news_results]
     
-    news_articles_shortened = [Article(
-            title=n['title'],
-            link="",
-            source="",
-            date="",
-            snippet=' '.join(n['summary'].split()[:50])+"..." if n['summary'] else ' '.join(n['text'].split()[:50])+"...",
-            summary="")
-        for n in processed_news_results]
+    news_articles_shortened = [
+        {
+            "title": n['title'],
+            "link": "",
+            "source": "",
+            "date": "",
+            "snippet": ' '.join(n['summary'].split()[:50]) + "..." if n['summary'] else ' '.join(n['text'].split()[:50]) + "...",
+            "summary": ""
+        }
+        for n in processed_news_results
+    ]
+    # news_articles_shortened = [Article(
+    #         title=n['title'],
+    #         link="",
+    #         source="",
+    #         date="",
+    #         snippet=' '.join(n['summary'].split()[:50])+"..." if n['summary'] else ' '.join(n['text'].split()[:50])+"...",
+    #         summary="")
+    #     for n in processed_news_results]
 
-    news_art_formatted = "\n-----\n".join([f"Article Title: {a.title}\nArticle Snippet: {a.snippet}" for a in news_articles_shortened][:4])
+    news_art_formatted = "\n-----\n".join([f"Article Title: {a['title']}\nArticle Snippet: {a['snippet']}" for a in news_articles_shortened][:4])
 
     llm_response = model.invoke([
         ("system", TopicsGenerator.system),
@@ -109,34 +129,37 @@ def get_topics(state):
     ]).content
 
     topics = json_fixer(llm_response)
-    if topics["topics"]:
-        for topic in topics["topics"]:  # re-add full articles after using shortened for llm
+    topics = topics.get("topics", topics)
+    
+    if topics:
+        for topic in topics:  # re-add full articles after using shortened for llm
             article_titles = [article["title"] for article in topic["articles"]]
-            complete_articles = [a for a in news_articles if a.title in article_titles]
+            complete_articles = [a for a in news_articles if a["title"] in article_titles]
             topic["articles"] = complete_articles
     else:
         raise ValueError(f"No topics generated: {topics}")
 
-    if len (topics["topics"]) > 1:
-        for idx, topic in enumerate(topics["topics"]):
+    
+    if len (topics) > 1:
+        for idx, topic in enumerate(topics):
             print(f"{idx}. Topic: {topic['name']}")
             for art in topic["articles"]:
-                print(f"\tArt title: {art.title}")
-                print(f"\tArt snippet: {art.snippet}")
-                print(f"\tArt url: {art.link}")
+                print(f"\tArt title: {art['title']}")
+                print(f"\tArt snippet: {art['snippet']}")
+                print(f"\tArt url: {art['link']}")
                 print(f"\t--------------------------------")
         selected_index = 0 #int(input("Please select a topic by typing the number corresponding to the index: "))
-        chosen_topic = topics["topics"][selected_index]
+        chosen_topic = topics[selected_index]
         print(f"\nYou selected query: {chosen_topic['name']}")
         state["topic"] = chosen_topic
         return state
     else:
-        chosen_topic = topics["topics"][0]
+        chosen_topic = topics[0]
         print(f"\nOne topic generated: {chosen_topic['name']}")
         for art in chosen_topic["articles"]:
-            print(f"\tArt title: {art.title}")
-            print(f"\tArt snippet: {art.snippet}")
-            print(f"\tArt url: {art.link}")
+            print(f"\tArt title: {art['title']}")
+            print(f"\tArt snippet: {art['snippet']}")
+            print(f"\tArt url: {art['link']}")
             print(f"\t--------------------------------")
         state["topic"] = chosen_topic
         return state

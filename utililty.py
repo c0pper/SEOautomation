@@ -41,6 +41,7 @@ from langchain_openai import ChatOpenAI
 import os
 
 nlp = spacy.load("en_core_web_lg")
+model = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0)
 
 def search_google(query, gl="it", hl="it", search_type=None):
   params = {
@@ -208,9 +209,6 @@ def _fix_json(invalid_json, errors: list):
     # errors coming from guardrails
     # example: guard = Guard().use(ValidJson, on_fail=fix_json)
     
-    
-    model = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0)
-    
     if errors:
         nl = "\n"
         error_messages = nl.join([f"- {e.error_message}" for e in errors])
@@ -227,22 +225,51 @@ def _fix_json(invalid_json, errors: list):
     return response
 
 
-def json_fixer(json_from_llm):
+def _old_json_fixer(json_from_llm):
     guard = Guard().use(ValidJson, on_fail=_fix_json)
     is_valid = False
     valid_json = ""
+    max_retries = 5
+    current = 0
 
-    while not is_valid:
+    while not is_valid and current < max_retries:
+        current += 1
         validation = guard.parse(json_from_llm)
-        # validation.validated_output = '```json\n{\n    "primary_keyword": "Flood watch alert"\n}\n```'
-        valid_json = validation.validated_output.replace("```json", "").replace("```", "").strip()
-        try: 
-            json.loads(valid_json)
-            is_valid = validation.validation_passed
-        except:
-            is_valid = False
+        # validation.validated_output = ''
+        if validation.validated_output:
+            # validation.validated_output = '```json\n{\n    "primary_keyword": "Flood watch alert"\n}\n```'
+            valid_json = validation.validated_output.replace("```json", "").replace("```", "").strip()
+            try: 
+                json.loads(valid_json)
+                is_valid = validation.validation_passed
+            except:
+                is_valid = False
+        else:
+            raise ValueError("LLM responded with empty string")
     # print("Good JSON!\n", json.loads(valid_json))
     return json.loads(valid_json)
+
+def json_fixer(json_from_llm):
+    is_valid = False
+    valid_json = ""
+    max_retries = 5
+    current = 0
+
+    while not is_valid and current < max_retries:
+        current += 1
+        try:
+            # Try to load the JSON to check its validity
+            valid_json = json.loads(json_from_llm)
+            is_valid = True
+        except json.JSONDecodeError as e:
+            # If there's an error, attempt to fix it
+            error_output = str(e)
+            json_from_llm = _fix_json(json_from_llm, [error_output])
+    
+    if is_valid:
+        return valid_json
+    else:
+        raise ValueError("Unable to generate valid JSON after maximum retries")
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+from colorama import Fore
 from langchain_core.documents import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
@@ -5,8 +6,6 @@ from langchain_chroma import Chroma
 import re
 import os
 from hashlib import md5
-from outline import OutlineGenerator
-from topics import chosen_topic
 from utililty import text_getter
 
 
@@ -29,20 +28,16 @@ def split_docs(docs):
     return splitted_docs
 
 
+def get_vectore_store_dir(state):
+    vectorstore_trend_name = state["topic"]["name"].lower().replace(" ", "_")
+    hash_id = md5(vectorstore_trend_name.encode()).hexdigest()
+    vectorstore_id = re.sub(r'[^A-Za-z0-9_]+', '', vectorstore_trend_name) + "_" + hash_id
+    persist_directory=f"vectorstores/{vectorstore_id}"
+    
+    state["vectore_store"]["name"] = vectorstore_trend_name
+    state["vectore_store"]["directory"] = persist_directory
+    return state
 
-vectorstore_trend_name = chosen_topic.topic.lower().replace(" ", "_")
-hash_id = md5(vectorstore_trend_name.encode()).hexdigest()
-vectorstore_id = re.sub(r'[^A-Za-z0-9 ]+', '', vectorstore_trend_name) + "_" + hash_id
-persist_directory=f"vectorstores/{vectorstore_id}"
-
-if not os.path.exists(persist_directory):
-    print("Initializing vectorstore")
-    vectorstore = Chroma.from_documents([Document(page_content="")], OpenAIEmbeddings(), persist_directory=persist_directory)
-else:
-    print("Loading vectorstore")
-    vectorstore = Chroma(persist_directory=persist_directory)
-vectorstore = Chroma.from_documents([Document(page_content="")], OpenAIEmbeddings(), persist_directory=persist_directory)
-vectorstore.get()["ids"]
 
 
 def organic_results_to_splitted_docs(web_search:dict) -> list:
@@ -54,17 +49,34 @@ def organic_results_to_splitted_docs(web_search:dict) -> list:
     return splitted_docs
 
 
-def fill_vectorstore(outline_with_searches:OutlineGenerator, vectorstore: Chroma):
-    outline_copy = outline_with_searches  # copy outline so i keep the empty version
-    total_titles = len(outline_copy.h2_titles)
-    
-    for index, h2 in enumerate(outline_copy.h2_titles):
-        print(f"[+] Adding docs for ## {h2.title} ({index + 1}/{total_titles})...")
-        splitted_docs = organic_results_to_splitted_docs(h2.web_search)
-        vectorstore.add_documents(splitted_docs)
+def get_vectore_store(state):
+    persist_directory = state["vectore_store"]["directory"]
+    if not os.path.exists(persist_directory):
+        print("Initializing vectorstore from scratch")
+        vectorstore = Chroma.from_documents([Document(page_content="")], OpenAIEmbeddings(), persist_directory=persist_directory)
+    else:
+        print("Loading vectorstore from storage")
+        vectorstore = Chroma(persist_directory=persist_directory, embedding_function=OpenAIEmbeddings())
 
-        if h2.h3_titles:
-            for h3 in h2.h3_titles:
-                print(f"[+] Adding docs for ### {h3.title}...")
-                splitted_docs = organic_results_to_splitted_docs(h3.web_search)
-                vectorstore.add_documents(splitted_docs)
+    return vectorstore
+
+
+def fill_vectorstore(outline_with_searches:dict, vectorstore: Chroma):
+    n_doc = len(vectorstore.get()['documents'])
+    if n_doc < 2:
+        print(Fore.LIGHTBLUE_EX + f'[+] Populating vectorstore...')
+        outline_copy = outline_with_searches.copy()  # copy outline so i keep the empty version
+        total_titles = len(outline_copy["h2_titles"])
+        
+        for index, h2 in enumerate(outline_copy["h2_titles"]):
+            print(f"\t[+] Adding docs for ## {h2['title']} ({index + 1}/{total_titles})...")
+            splitted_docs = organic_results_to_splitted_docs(h2["web_search"])
+            vectorstore.add_documents(splitted_docs)
+
+            if h2["h3_titles"]:
+                for h3 in h2["h3_titles"]:
+                    print(f"\t\t[+] Adding docs for ### {h3['title']}...")
+                    splitted_docs = organic_results_to_splitted_docs(h3["web_search"])
+                    vectorstore.add_documents(splitted_docs)
+    else:
+        print(Fore.LIGHTBLUE_EX + f'[+] Skipping vectorstore population... already found {n_doc} documents')

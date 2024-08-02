@@ -1,116 +1,132 @@
 
 
+import json
 from typing import List
+from colorama import Fore
 from pydantic import BaseModel, Field
-from topics import chosen_topic
-from utililty import use_component
+from utililty import json_fixer
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+from utililty import model
 
 
 
-model = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0)
 
-class PrimaryKeyword(BaseModel):
-    """ primary keyword is the central term or phrase that best represents the main topic of a piece of content."""
+class PrimaryKeywordGenerator():
+    schema = """
+    ### Insutrctions
+    Based on the above articles, generate a primary keyword adhering to the following json schema:
+    {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "PrimaryKeyword",
+    "type": "object",
+    "properties": {
+        "primary_keyword": {
+        "type": "string",
+        "description": "The main term or phrase a webpage is expected to rank for in search engine results"
+        }
+    },
+    "required": ["primary_keyword"],
+    "additionalProperties": false
+    }
 
-    keyword: str = Field(description="The primary keyword")
-
-class PrimaryKeywordGenerator(BaseModel):
-    # """A component responsible for generating a primary keyword for an article starting from a list of related articles."""
-
-    primary_keyword: PrimaryKeyword = Field(
-        description="The generated primary keyword"
-    )
+    Only respond with valid json which can be parsed in python.
+    """
     
-primary_keyword_gen_system = """You are a primary keyword generator. You will generate a primary keyword to guide the writing of an SEO-efficient article starting from a list of articles."""
-primary_keyword_gen_human = """Articles:\n\n {articles}"""
-primary_keyword_gen_template = ChatPromptTemplate.from_messages(
-    [
-        ("system", primary_keyword_gen_system),
-        ("human", primary_keyword_gen_human)
-    ]
-)
-  
+    system = """You are a primary keyword generator. You will generate a primary keyword to guide the writing of an SEO-efficient article starting from a list of articles."""
+    human = """Articles:\n\n {articles}\n\n{schema}"""
 
-class SecondaryKeyword(BaseModel):
-    """A secondary keyword is a term or phrase that is related to the primary keyword and supports the main topic of your content. It's used to cover subtopics, provide additional context, and enhance the overall relevancy of the content. While they are not the main focus of the article, secondary keywords help to capture additional search traffic and improve the depth and breadth of the content."""
 
-    keyword: str = Field(description="The secondary keyword")
+class SecondaryKeywordGenerator():
+    schema = """
+    ### Insutrctions
+    Generate a list of secondary keywords adhering strictly to the following json schema:
+    {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "SecondaryKeyword",
+    "type": "object",
+    "properties": {
+        "secondary_keywords": {
+        "type": "array",
+        "description": "The list of generated secondary keywords"
+        }
+    },
+    "required": ["secondary_keywords"],
+    "additionalProperties": false
+    }
 
-class SecondaryKeywordGenerator(BaseModel):
-    """A component responsible for generating a list of secondary keywords starting from a primary keyword and a list of related articles."""
-
-    secondary_keywords: List[SecondaryKeyword] = Field(
-        description="A list of generated secondary keywords."
-    )
-
-    @classmethod
-    def get_system_prompt(cls) -> str:
-        return """You are a secondary keyword generator. You will generate a list of secondary keywords to guide the writing of an SEO-efficient article based on the provided primary keyword and a list of related articles.\n\n Example: For an article with the primary keyword "how to bake a cake," potential secondary keywords could be:\n    "cake baking tips"\n    "best cake baking recipes"\n    "cake baking ingredients"\n    "cake baking tools"\n    "common cake baking mistakes.\n\nAVOID generic keywords such as "Obama news", be specific."""
+    Only respond with valid json which can be parsed in python.
+    """
     
-    @classmethod
-    def get_user_prompt(cls):
-        return """Primary keyword: {kw}\n\nRelated articles:\n{articles}\n\n###Additional instructions###\n AVOID any generic keywords such as 'Obama news', be specific."""
+    system = """You are a secondary keywords generator. You will generate a list of secondary keywords to guide the writing of an SEO-efficient article based on the provided primary keyword and a list of related articles.\n\n Example: For an article with the primary keyword "how to bake a cake," potential secondary keywords could be:\n    "cake baking tips"\n    "best cake baking recipes"\n    "cake baking ingredients"\n    "cake baking tools"\n    "common cake baking mistakes.\n\nAVOID generic keywords such as "Obama news", be specific."""
+    human = """### Primary keyword:\n {p_kw}\n\n### Related articles:\n{articles}\n\n###Additional instructions###\n AVOID any generic keywords such as 'Obama news', be specific.\n\n{schema}"""
+
+
+class LongtailKeywordsGenerator():
+    schema = """
+    ### Insutrctions
+    Generate a list of longtail keywords adhering strictly to the following json schema:
+    {
+        "longtail_keywords": {
+            "type": "array",
+            "description": "The list of generated longtail keywords"
+        },
+        "required": ["longtail_keywords"],
+    }
+
+    Only respond with valid json which can be parsed in python.
+    """
     
-    @classmethod
-    def remove_news(cls, kw: list):
-        for k in kw.secondary_keywords:
-            if "news" in k.keyword:
-                kw.secondary_keywords.remove(k)
-        return kw
+    system = """You will generate longtail keywords starting from a primary keyword, a list of secondary keywords and a list of related articles. For example, if the primary keyword was 'bake a cake,' potential long-tail keywords could be:\n\n    'how to bake a chocolate cake from scratch'\n    'easy homemade vanilla cake recipe'\n    'gluten-free cake baking tips'\n    'best tools for cake baking beginners'\n    'how to bake a moist red velvet cake'"""
+    human = """### Primary keyword:\n {p_kw}\n\n### Secondary keywords:\n {s_kw}\n\n### Related articles:\n{articles}\n\n{schema}"""
+
+
+
+def get_primary_keyword(state):
+    print(Fore.LIGHTBLUE_EX + f'[+] Getting primary_keyword for topic {state["topic"]["name"]}')
+    pk_articles = state["topic"]["articles"]
+    formatted_articles = "\n----\n".join([f'Title: {a["title"]}\nSnippet: {a["snippet"]}' for a in pk_articles])
+
+    llm_response = model.invoke([
+        ("system", PrimaryKeywordGenerator.system),
+        ("human", PrimaryKeywordGenerator.human.format(articles=formatted_articles, schema=PrimaryKeywordGenerator.schema)),
+    ]).content
+        
+    primary_keyword = json_fixer(llm_response)
+    state["primary_keyword"] = primary_keyword.get("primary_keyword", primary_keyword)
+    state["topic"]["formatted_articles"] = formatted_articles
+    print(Fore.LIGHTBLUE_EX + f'\t[+] Primary_keyword: {primary_keyword}')
+    return state
+
+
+def get_secondary_keywords(state):
+    print(Fore.LIGHTBLUE_EX + f'[+] Getting secondary_keywords for topic {state["topic"]["name"]}')
+    formatted_articles = state["topic"]["formatted_articles"]
+    pk = state["primary_keyword"]
     
+    llm_response = model.invoke([
+        ("system", SecondaryKeywordGenerator.system),
+        ("human", SecondaryKeywordGenerator.human.format(p_kw=pk, articles=formatted_articles, schema=SecondaryKeywordGenerator.schema)),
+    ]).content
+        
+    secondary_keywords = json_fixer(llm_response)
+    state["secondary_keywords"] = secondary_keywords.get("secondary_keywords", secondary_keywords)
+    print(Fore.LIGHTBLUE_EX + f'\t[+] Secondary keywords: {secondary_keywords}')
+    return state
 
-class LongtailKeyword(BaseModel):
-    """A longtail keyword is a keyword that is not in the top 10 search results."""
 
-    keyword: str = Field(description="The longtail keyword")
-
-
-class LongtailKeywordsGenerator(BaseModel):
-    """A component responsible for generating longtail keywords starting from a primary keyword, a list of secondary keywords and a list of related articles. """
-
-    longtail_keywords: list[LongtailKeyword] = Field(
-        description="A list of generated longtail keywords."
-    )
-
-    @classmethod
-    def get_system_prompt(cls) -> str:
-        return """You will generate longtail keywords starting from a primary keyword, a list of secondary keywords and a list of related articles. For example, if the primary keyword was 'bake a cake,' potential long-tail keywords could be:\n\n    'how to bake a chocolate cake from scratch'\n    'easy homemade vanilla cake recipe'\n    'gluten-free cake baking tips'\n    'best tools for cake baking beginners'\n    'how to bake a moist red velvet cake'"""
+def get_longtail_keywords(state):
+    print(Fore.LIGHTBLUE_EX + f'[+] Getting longtail_keywords for topic {state["topic"]["name"]}')
+    formatted_articles = state["topic"]["formatted_articles"]
+    pk = state["primary_keyword"]
+    sk = state["secondary_keywords"]
     
-    @classmethod
-    def get_user_prompt(cls):
-        return """Primary keyword: {kw}\n\Secondary keywords: {skw}\n\nRelated articles:\n{articles}"""
-    
-    def remove_dups(self, secondary_kws: SecondaryKeywordGenerator) -> 'LongtailKeywordsGenerator':
-        sec_keys = [k.keyword for k in secondary_kws.secondary_keywords]
-        for lt in self.longtail_keywords:
-            if lt.keyword in sec_keys:
-                self.longtail_keywords.remove(lt)
-        return self
-    
-
-pk_articles = chosen_topic.articles
-formatted_articles = "\n----\n".join([f'Title: {a.title}\nSnippet: {a.snippet}' for a in pk_articles])
-structured_llm = model.with_structured_output(PrimaryKeywordGenerator)
-generator = primary_keyword_gen_template | structured_llm
-generated_topics = generator.invoke({"articles": formatted_articles})
-
-pk = use_component(PrimaryKeywordGenerator, {"articles": formatted_articles}, human_prompt=pk_human)
-print(f"Primary keyword:{pk}")
-
-sec_keys = use_component(
-    SecondaryKeywordGenerator, 
-    {"kw": pk.primary_keyword.keyword, "articles": formatted_articles}
-)
-sec_keys = SecondaryKeywordGenerator.remove_news(sec_keys)
-sec_keys_list = [k.keyword for k in sec_keys.secondary_keywords]
-print(sec_keys)
-print(f'Secondary keywords{"; ".join(sec_keys_list)}')
-
-longtail_keys = use_component(
-    LongtailKeywordsGenerator, 
-    {"kw": pk.primary_keyword.keyword, "skw": "; ".join(sec_keys_list), "articles": formatted_articles}
-)
-longtail_keys = longtail_keys.remove_dups(sec_keys)
-
+    llm_response = model.invoke([
+        ("system", LongtailKeywordsGenerator.system),
+        ("human", LongtailKeywordsGenerator.human.format(p_kw=pk, s_kw=sk, articles=formatted_articles, schema=LongtailKeywordsGenerator.schema)),
+    ]).content
+        
+    longtail_keywords = json_fixer(llm_response)
+    state["longtail_keywords"] = longtail_keywords.get("longtail_keywords", longtail_keywords)
+    print(Fore.LIGHTBLUE_EX + f'\t[+] Longtail keywords: {longtail_keywords}')
+    return state

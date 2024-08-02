@@ -1,5 +1,4 @@
 from outline import OutlineGenerator
-from linker import outline_with_links
 from utililty import nlp
 import yake
 
@@ -31,15 +30,16 @@ def create_bolds_in_paragraph(paragraph: str, percent_bold_words_per_para:int=4,
 
 
 
-def add_bolds_to_outline(outline: OutlineGenerator, percent_bold_words_per_para=10) -> OutlineGenerator:
-    outline_copy = outline  # copy outline so i keep the empty version
-    for h2 in outline_copy.h2_titles:
-        h2.content.paragraph = create_bolds_in_paragraph(h2.content.paragraph, percent_bold_words_per_para)
+def add_bolds_to_outline(state: dict, percent_bold_words_per_para=10) -> dict:
+    outline_copy = state["outline"]  # copy outline so i keep the empty version
+    for h2 in outline_copy["h2_titles"]:
+        h2["content"] = create_bolds_in_paragraph(h2["content"], percent_bold_words_per_para)
 
-        if h2.h3_titles:
-            for h3 in h2.h3_titles:
-                h3.content.paragraph = create_bolds_in_paragraph(h3.content.paragraph, percent_bold_words_per_para)
-    return outline_copy
+        if h2["h3_titles"]:
+            for h3 in h2["h3_titles"]:
+                h3["content"] = create_bolds_in_paragraph(h3["content"], percent_bold_words_per_para)
+    state["outline"] = outline_copy
+    return state
 
 
-outline_w_bolds = add_bolds_to_outline(outline_with_links, percent_bold_words_per_para=50)
+# outline_w_bolds = add_bolds_to_outline(outline_with_links, percent_bold_words_per_para=50)
