@@ -20,6 +20,7 @@ from guardrails import Guard
 from guardrails.hub import ValidJson
 import pytz
 import datetime
+import time
 import platform
 import json
 
@@ -39,25 +40,86 @@ import serpapi
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 import os
+from selenium import webdriver
+from selenium.webdriver.common.by import By
 
 nlp = spacy.load("en_core_web_lg")
 model = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0)
+RIFIUTA_COOKIE_BUTTON_ID = "W0wltc"
+
+
+def scrape_google(query, search_type=None):
+    driver = webdriver.Firefox()
+    # Open Google search page
+    driver.get("https://www.google.com")
+    try:
+        rifiuta_button = driver.find_element(By.ID, RIFIUTA_COOKIE_BUTTON_ID)
+        rifiuta_button.click()
+    except Exception as e:
+        raise Exception("Errore nel bottone cookie google", e)
+
+    # Find the search box and enter the query
+    search_box = driver.find_element(By.NAME, "q")
+    search_box.send_keys(query)
+    search_box.submit()
+
+    # Wait for the results to load
+    time.sleep(2)
+    
+    if search_type == "nws":
+        notizie_button = driver.find_element(By.XPATH, "//a//div[text()='Notizie']")
+        notizie_button.click()
+    
+    # Find the div with id "search"
+    search_div = driver.find_element(By.ID, "search")
+    
+    # Find all 'a' tags within the search div
+    links = search_div.find_elements(By.TAG_NAME, "a")
+    
+    results = []
+    for link in links:
+        try:
+            h3_text = link.find_element(By.TAG_NAME, "h3").text
+            if len(h3_text) > 2:
+                print(f"Title: {h3_text}")
+                print(f"URL: {link.get_attribute('href')}")
+                print("---")
+                results.append({"link": link.get_attribute('href')})
+        except:
+            # If there's no h3 tag, look for div with role attribute
+            try:
+                div_with_role = link.find_element(By.XPATH, ".//div[@role]")
+                div_text = div_with_role.text
+                if len(div_text) > 2:
+                    print(f"Title (div): {div_text}")
+                    print(f"URL: {link.get_attribute('href')}")
+                    print("---")
+                    results.append({"link": link.get_attribute('href')})
+            except:
+                # If neither h3 nor div with role is found, skip this link
+                pass
+    
+    driver.quit()
+    return results
+
 
 def search_google(query, gl="it", hl="it", search_type=None):
-  params = {
-    "api_key": os.getenv("SERP_API_KEY"),
-    "engine": "google",
-    "q": query,
-    # "location": "Austin, Texas, United States",
-    # "google_domain": "google.com",
-    "gl": gl,
-    "hl": hl,
-    "tbm": search_type #nws: Google News API,
-  }
+    search = scrape_google(query, search_type=search_type)
+    
+    # params = {
+    # "api_key": os.getenv("SERP_API_KEY"),
+    # "engine": "google",
+    # "q": query,
+    # # "location": "Austin, Texas, United States",
+    # # "google_domain": "google.com",
+    # "gl": gl,
+    # "hl": hl,
+    # "tbm": search_type #nws: Google News API,
+    # }
 
-  search = serpapi.GoogleSearch(params)
-  search = search.get_dict()
-  return search
+    # search = serpapi.GoogleSearch(params)
+    # search = search.get_dict()
+    return search
 
 
 def use_component(component_cls, input_dict:dict, llm=ChatOpenAI(model="gpt-4o-mini", temperature=0), system_prompt=None, human_prompt_template=None):
@@ -211,7 +273,7 @@ def _fix_json(invalid_json, errors: list):
     
     if errors:
         nl = "\n"
-        error_messages = nl.join([f"- {e.error_message}" for e in errors])
+        error_messages = nl.join([f"- {e}" for e in errors])
         errors_str = f"### Error messages\n{error_messages}"
     else:
         errors_str = f"### Error messages\nNot available"
@@ -259,6 +321,7 @@ def json_fixer(json_from_llm):
         current += 1
         try:
             # Try to load the JSON to check its validity
+            json_from_llm = json_from_llm.replace("```json", "").replace("```", "").strip()
             valid_json = json.loads(json_from_llm)
             is_valid = True
         except json.JSONDecodeError as e:

@@ -71,7 +71,7 @@ def search_web_for_outline_paragraphs(state: dict, gl="us", hl="en") -> dict:
         h2_results = search_google(generated_query, hl=hl, gl=gl)
         h2['web_search'] = {
             "generated_query": generated_query,
-            "results": h2_results
+            "results": h2_results if "organic_results" in h2_results else {"organic_results": h2_results}
         }
 
         if h2.get('h3_titles'):
@@ -88,7 +88,7 @@ def search_web_for_outline_paragraphs(state: dict, gl="us", hl="en") -> dict:
                 h3_results = search_google(generated_query, hl=hl, gl=gl)
                 h3['web_search'] = {
                     "generated_query": generated_query,
-                    "results": h3_results
+                    "results": h3_results if "organic_results" in h3_results else {"organic_results": h3_results}
                 }
     state["outline"] = outline_copy
     return state
