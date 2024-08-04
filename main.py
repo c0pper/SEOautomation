@@ -9,6 +9,7 @@ from parapgraphs import search_web_for_outline_paragraphs, get_filled_outline
 from linker import add_links_to_outline
 from bold_words import add_bolds_to_outline
 from refiner import get_intro, get_conclusion, get_title, finalize_article
+from image_generation import get_sd_prompt, generate_and_save_images
 
 
     
@@ -34,7 +35,9 @@ def main():
         "introduction": "",
         "conclusion": {},
         "article_title": "",
-        "full_article": ""
+        "full_article": "",
+        "sd_prompt": "",
+        "article_image": ""
     }
     
     state = ask_trend(state)
@@ -52,6 +55,8 @@ def main():
     state = get_intro(state)
     state = get_conclusion(state)
     state = get_title(state)
+    state = get_sd_prompt(state)
+    state = generate_and_save_images(state)
     state = finalize_article(state)
     print(state)
     return state

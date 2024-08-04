@@ -16,8 +16,6 @@
 
 import re
 from typing import Dict
-from guardrails import Guard
-from guardrails.hub import ValidJson
 import pytz
 import datetime
 import time
@@ -267,10 +265,7 @@ def text_getter(url: str) -> Dict:
     yield answer
     
     
-def _fix_json(invalid_json, errors: list):
-    # errors coming from guardrails
-    # example: guard = Guard().use(ValidJson, on_fail=fix_json)
-    
+def _fix_json(invalid_json, errors: list):    
     if errors:
         nl = "\n"
         error_messages = nl.join([f"- {e}" for e in errors])
@@ -286,30 +281,6 @@ def _fix_json(invalid_json, errors: list):
     response = model.invoke(messages).content
     return response
 
-
-def _old_json_fixer(json_from_llm):
-    guard = Guard().use(ValidJson, on_fail=_fix_json)
-    is_valid = False
-    valid_json = ""
-    max_retries = 5
-    current = 0
-
-    while not is_valid and current < max_retries:
-        current += 1
-        validation = guard.parse(json_from_llm)
-        # validation.validated_output = ''
-        if validation.validated_output:
-            # validation.validated_output = '```json\n{\n    "primary_keyword": "Flood watch alert"\n}\n```'
-            valid_json = validation.validated_output.replace("```json", "").replace("```", "").strip()
-            try: 
-                json.loads(valid_json)
-                is_valid = validation.validation_passed
-            except:
-                is_valid = False
-        else:
-            raise ValueError("LLM responded with empty string")
-    # print("Good JSON!\n", json.loads(valid_json))
-    return json.loads(valid_json)
 
 def json_fixer(json_from_llm):
     is_valid = False
