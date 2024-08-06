@@ -20,11 +20,12 @@ def create_links_in_paragraph(paragraph: str, matches: List[Dict[str, Any]]) -> 
         par_phrase = f" {match['par_phrase']} "
         url = match['best_match']['url']
         markdown_link = f"[{par_phrase.strip()}]({url})"
+        wp_link = f'<a href={url}>{par_phrase.strip()}</a>'
         if markdown_link in paragraph:
             continue
         else:
             if url not in paragraph:
-                paragraph = paragraph.replace(par_phrase.strip(), f" {markdown_link} ", 1)
+                paragraph = paragraph.replace(par_phrase.strip(), f" {wp_link} ", 1)
 
     return paragraph
 

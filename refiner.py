@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from typing import List, Union
 from colorama import Fore
 from pydantic import BaseModel, Field
 from outline import OutlineGenerator
@@ -150,16 +151,16 @@ def stitch_h2_paragraphs(outline: dict) -> str:
 
     for h2 in outline["h2_titles"]:
         # Add H2 title
-        article_body += f"## {h2['title']}\n"
+        article_body += f"{to_wp_tags(h2['title'], 'h2')}\n"
         # Add H2 content
-        article_body += f"{h2['content']}\n\n"
+        article_body += f"{to_wp_tags(h2['content'], 'paragraph')}\n\n"
         # If there are H3 titles, add them
         if h2["h3_titles"]:
             for h3 in h2["h3_titles"]:
                 # Add H3 title
-                article_body += f"### {h3['title']}\n"
+                article_body += f"{to_wp_tags(h3['title'], 'h3')}\n"
                 # Add H3 content
-                article_body += f"{h3['content']}\n\n"
+                article_body += f"{to_wp_tags(h3['content'], 'paragraph')}\n\n"
 
     return article_body.strip()
 
@@ -234,6 +235,38 @@ def save_article_state_as_json(state:dict, filename:str):
         json.dump(state, file, indent=4)
     
     print(f"State saved at {file_path}")
+    
+    
+def to_wp_tags(content: Union[List, str], md_attribute) -> str:
+    if md_attribute == "h2":
+        return f"""<!-- wp:heading -->
+<h2 class="wp-block-heading">{content}</h2>
+<!-- /wp:heading -->"""
+
+    elif md_attribute == "h3":
+        return f"""<!-- wp:heading {{"level":3}} -->
+<h3 class="wp-block-heading">{content}</h2>
+<!-- /wp:heading -->"""
+
+    elif md_attribute == "paragraph":
+        return f"""<!-- wp:paragraph -->
+<p>{content}</p>
+<!-- /wp:paragraph -->"""
+
+    elif md_attribute == "ul":
+        if not isinstance(content, list):
+            raise TypeError("Need list for this operation")
+        wp_list_open = '<!-- wp:list -->\n<ul class="wp-block-list">'
+        wp_list_close = '</ul>\n<!-- /wp:list -->'
+        
+        list_items = '\n'.join(
+            f'<!-- wp:list-item -->\n<li>{keypoint}</li>\n<!-- /wp:list-item -->' 
+            for keypoint in content
+        )
+        
+        # Combine everything into the final output
+        return f'{wp_list_open}\n{list_items}\n{wp_list_close}'
+    
 
 
 def finalize_article(state):
@@ -247,9 +280,10 @@ def finalize_article(state):
     nl = "\n"
     if not isinstance(conclusion['keypoints'], list):
         conclusion['keypoints'] = conclusion['keypoints'].split(",")
-    keypoints = f"## Key points\n{nl.join(f'- {c}' for c in conclusion['keypoints'])}\n\n"
+    keypoints = f"{to_wp_tags('Key points', 'h2')}\n{to_wp_tags(conclusion['keypoints'], 'ul')}\n\n"
 
-    article_intro_concl = "# " + article_title + "\n\n" + f"![Alt text]({state['article_image']})" + "\n\n" + keypoints + "\n\n" + intro + "\n\n" + article + "\n\n## Conclusion\n" + conclusion["conclusion"]
+    article_intro_concl = "# " + article_title + "\n\n" + keypoints + "\n\n" + to_wp_tags(intro, "paragraph") + "\n\n" + article + f"\n\n{to_wp_tags('Conclusion', 'h2')}\n" + to_wp_tags(conclusion["conclusion"], "paragraph")
+    article_intro_concl = re.sub(' +', ' ', article_intro_concl)
     print(article_intro_concl)
     save_article_as_markdown(article_intro_concl, f"{article_title}")
     state["full_article"] = article_intro_concl
