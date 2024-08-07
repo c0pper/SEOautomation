@@ -1,15 +1,17 @@
-#This is an example that uses the websockets api and the SaveImageWebsocket node to get images directly without
-#them being saved to disk
-
+import io
 import os
+import random
 import re
+import shutil
 from colorama import Fore
+import requests
 import websocket #NOTE: websocket-client (https://github.com/websocket-client/websocket-client)
 import uuid
 import json
 import urllib.request
 import urllib.parse
 from utililty import model
+from PIL import Image
 
 server_address = "127.0.0.1:8188"
 client_id = str(uuid.uuid4())
@@ -44,24 +46,14 @@ def get_sd_prompt(state):
 
 
 
-def queue_prompt(prompt):
+def _queue_prompt(prompt):
     p = {"prompt": prompt, "client_id": client_id}
     data = json.dumps(p).encode('utf-8')
     req =  urllib.request.Request("http://{}/prompt".format(server_address), data=data)
     return json.loads(urllib.request.urlopen(req).read())
 
-def get_image(filename, subfolder, folder_type):
-    data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
-    url_values = urllib.parse.urlencode(data)
-    with urllib.request.urlopen("http://{}/view?{}".format(server_address, url_values)) as response:
-        return response.read()
-
-def get_history(prompt_id):
-    with urllib.request.urlopen("http://{}/history/{}".format(server_address, prompt_id)) as response:
-        return json.loads(response.read())
-
-def get_images(ws, prompt):
-    prompt_id = queue_prompt(prompt)['prompt_id']
+def _get_images(ws, prompt):
+    prompt_id = _queue_prompt(prompt)['prompt_id']
     output_images = {}
     current_node = ""
     while True:
@@ -87,7 +79,52 @@ def get_images(ws, prompt):
 
 workflow = json.load(open("image_generator_api.json", "r"))
 
-def generate_and_save_images(state, workflow, seed=5, steps=6, batch_size=4):
+def _save_images(images, directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    
+    saved_image_paths = []
+    for node_id in images:
+        for idx, image_data in enumerate(images[node_id]):
+            image = Image.open(io.BytesIO(image_data))
+            image_path = f"{directory}/image{idx}.png"
+            image.save(image_path)
+            saved_image_paths.append(image_path)
+    return saved_image_paths
+
+
+def _prompt_for_image_selection(batch_size):
+    try:
+        image1_idx = input(f"Choose first image to use in article -> 0-{batch_size-1} OR leave empty to generate again\n")
+        image2_idx = input(f"Choose second image to use in article -> 0-{batch_size-1} OR leave empty to generate again\n")
+        if image1_idx == '' or image2_idx == '':
+            return None, None
+        image1_idx = int(image1_idx)
+        image2_idx = int(image2_idx)
+        if 0 <= image1_idx < batch_size and 0 <= image2_idx < batch_size:
+            return image1_idx, image2_idx
+        else:
+            print(Fore.YELLOW, "Invalid selection, please choose indices within the range.")
+            return None, None
+    except ValueError:
+        print(Fore.YELLOW, "Invalid input, please enter numeric indices or leave empty to regenerate.")
+        return None, None
+
+
+def _clear_images_directory(directory):
+    if os.path.exists(directory):
+        for filename in os.listdir(directory):
+            file_path = os.path.join(directory, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(Fore.YELLOW, f"Failed to delete {file_path}. Reason: {e}")
+
+
+def generate_and_save_images(state, workflow, seed=random.randint(1,10000), steps=6, batch_size=4):
     print(Fore.LIGHTBLUE_EX + f'[+] Generating images...')
     ws = websocket.WebSocket()
     ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
@@ -98,19 +135,50 @@ def generate_and_save_images(state, workflow, seed=5, steps=6, batch_size=4):
     workflow["3"]["inputs"]["steps"] = steps
     workflow["5"]["inputs"]["batch_size"] = batch_size
 
-    images = get_images(ws, workflow)
+    image1_idx = None
+    image2_idx = None
+    while not image1_idx and not image2_idx:
+        _clear_images_directory(directory)
+        images = _get_images(ws, workflow)
 
-    sanitized_name = re.sub(r'[^A-Za-z0-9 ]+', '', state["article_title"]).lower().replace(" ", "_")
-    directory = f"articles/{sanitized_name}"[:30]
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    for node_id in images:
-        for idx, image_data in enumerate(images[node_id]):
-            from PIL import Image
-            import io
-            image = Image.open(io.BytesIO(image_data))
-            image.save(f"{directory}/image{idx}.png")
+        directory = f'{state["article_directory"]}/images'
+        saved_image_paths = _save_images(images, directory)
+        print(Fore.LIGHT_BLUE, f"Saved images to {directory}")
 
-    image_idx = input(f"Which image to use in article? 0-{batch_size-1}")
-    state["article_image"] = f"{sanitized_name}/image{image_idx}.png"
+        image1_idx, image2_idx = _prompt_for_image_selection(batch_size)
+        
+    state["article_images"] = [
+        {
+            "local_path": saved_image_paths[image1_idx],
+            "upload_response": _upload_image_to_wordpress(saved_image_paths[image1_idx])
+        }, 
+        {
+            "local_path": saved_image_paths[image2_idx],
+            "upload_response": _upload_image_to_wordpress(saved_image_paths[image2_idx])
+        }
+    ]
+    
+    
+    
+    ws.close()
     return state
+
+
+def _upload_image_to_wordpress(image_path, site="93simon7.wordpress.com"):
+    url = f"https://public-api.wordpress.com/rest/v1.1/sites/{site}/media/new"
+    token = os.getenv("WP_TOKEN")
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+    
+    files = {
+        'media[]': open(image_path, 'rb')
+    }
+    
+    response = requests.post(url, headers=headers, files=files)
+    
+    if response.status_code == 200:
+        return response.json()["media"][0]
+    else:
+        response.raise_for_status()
+        

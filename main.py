@@ -32,12 +32,13 @@ def main():
             "name": "",
             "directory": ""
         },
+        "article_directory": "",
         "introduction": "",
         "conclusion": {},
         "article_title": "",
         "full_article": "",
         "sd_prompt": "",
-        "article_image": ""
+        "article_images": []
     }
     
     state = ask_trend(state)

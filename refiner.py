@@ -146,10 +146,15 @@ class ArticleTitleGenerator:
 
 
 
-def stitch_h2_paragraphs(outline: dict) -> str:
+def stitch_h2_paragraphs(outline: dict, middle_image:str) -> str:
     article_body = ""
+    h2_titles = outline["h2_titles"]
+    total_h2 = len(h2_titles)
 
-    for h2 in outline["h2_titles"]:
+    for i, h2 in enumerate(h2_titles):
+        # If this is the last H2, add the image before it
+        if i == total_h2 - 1:
+            article_body += f"{middle_image}\n\n"
         # Add H2 title
         article_body += f"{to_wp_tags(h2['title'], 'h2')}\n"
         # Add H2 content
@@ -188,6 +193,15 @@ def get_conclusion(state):
     state["conclusion"] = conclusion
     return state
 
+
+def get_article_directory(title):
+    sanitized_name = re.sub(r'[^A-Za-z0-9 ]+', '', title).lower().replace(" ", "_")
+    directory = f"articles/{"_".join(sanitized_name.split("_")[:5])}"
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    return directory
+
+
 def get_title(state):
     print(Fore.LIGHTBLUE_EX + f'[+] Generating title...')
     outline = OutlineGenerator.print_formatted_outline(state["outline"])
@@ -204,16 +218,16 @@ def get_title(state):
         
     title = json_fixer(llm_response)
     state["article_title"] = title.get("title", title)
+    
+    directory = get_article_directory(state["article_title"])
+    state["article_directory"] = directory
+    
     return state
 
 
-def save_article_as_markdown(article:str, filename:str):
-    directory = "articles"
-    sanitized_name = re.sub(r'[^A-Za-z0-9 ]+', '', filename).lower().replace(" ", "_")+".md"
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    
-    file_path = os.path.join(directory, sanitized_name)
+def save_article_as_markdown(article:str, article_directory):
+    filename = article_directory.split("/")[-1]
+    file_path = os.path.join(article_directory, filename+".md")
     
     # Write the article content to the file in markdown format
     with open(file_path, 'w', encoding='utf-8') as file:
@@ -222,13 +236,9 @@ def save_article_as_markdown(article:str, filename:str):
     print(f"Article saved at {file_path}")
 
 
-def save_article_state_as_json(state:dict, filename:str):
-    sanitized_name = re.sub(r'[^A-Za-z0-9 ]+', '', filename).lower().replace(" ", "_")+".json"
-    directory = f"articles/{sanitized_name}"[:30]
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    
-    file_path = os.path.join(directory, sanitized_name)
+def save_article_state_as_json(state:dict, article_directory): 
+    filename = article_directory.split("/")[-1]   
+    file_path = os.path.join(article_directory, filename+".json")
     
     # Write the article content to the file in markdown format
     with open(file_path, 'w', encoding='utf-8') as file:
@@ -237,7 +247,7 @@ def save_article_state_as_json(state:dict, filename:str):
     print(f"State saved at {file_path}")
     
     
-def to_wp_tags(content: Union[List, str], md_attribute) -> str:
+def to_wp_tags(content: Union[List, str], md_attribute, img_id=None, img_width=None) -> str:
     if md_attribute == "h2":
         return f"""<!-- wp:heading -->
 <h2 class="wp-block-heading">{content}</h2>
@@ -266,25 +276,41 @@ def to_wp_tags(content: Union[List, str], md_attribute) -> str:
         
         # Combine everything into the final output
         return f'{wp_list_open}\n{list_items}\n{wp_list_close}'
+
+    elif md_attribute == "image":
+        return f"""<!-- wp:image {{"id":{img_id},"sizeSlug":"large","linkDestination":"none"}} -->
+<figure class="wp-block-image size-large"><img src="{content}?w={img_width}" alt="" class="wp-image-{img_id}" /></figure>
+<!-- /wp:image -->"""
+
+
+def get_wp_images_snippets(state):
+    image1_url = state["article_images"][0].get("URL")
+    image2_url = state["article_images"][1].get("URL")
     
+    wp_image1 = to_wp_tags(image1_url, "image", state["article_images"][0].get("ID"))
+    wp_image2 = to_wp_tags(image2_url, "image", state["article_images"][1].get("ID"))
+    return wp_image1, wp_image2
 
 
 def finalize_article(state):
     print(Fore.GREEN + f'[+] Finalizing article...')
     intro = state["introduction"]
     conclusion = state["conclusion"]
-    article = stitch_h2_paragraphs(state["outline"])
-    article_title = state["article_title"]
+    wp_image1, wp_image2 = get_wp_images_snippets(state)
+    article = stitch_h2_paragraphs(state["outline"], middle_image=wp_image2)
 
     # Add Key points
-    nl = "\n"
     if not isinstance(conclusion['keypoints'], list):
         conclusion['keypoints'] = conclusion['keypoints'].split(",")
     keypoints = f"{to_wp_tags('Key points', 'h2')}\n{to_wp_tags(conclusion['keypoints'], 'ul')}\n\n"
 
-    article_intro_concl = "# " + article_title + "\n\n" + keypoints + "\n\n" + to_wp_tags(intro, "paragraph") + "\n\n" + article + f"\n\n{to_wp_tags('Conclusion', 'h2')}\n" + to_wp_tags(conclusion["conclusion"], "paragraph")
+    article_intro_concl = wp_image1 + "\n\n" + keypoints + "\n\n" + to_wp_tags(intro, "paragraph") + "\n\n" + article + f"\n\n{to_wp_tags('Conclusion', 'h2')}\n" + to_wp_tags(conclusion["conclusion"], "paragraph")
     article_intro_concl = re.sub(' +', ' ', article_intro_concl)
     print(article_intro_concl)
-    save_article_as_markdown(article_intro_concl, f"{article_title}")
+    
+    save_article_as_markdown(article_intro_concl, state["article_directory"])
+    save_article_state_as_json(article_intro_concl, state["article_directory"])
+    
     state["full_article"] = article_intro_concl
+    
     return state
