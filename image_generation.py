@@ -138,12 +138,12 @@ def generate_and_save_images(state, workflow, seed=random.randint(1,10000), step
     image1_idx = None
     image2_idx = None
     while not image1_idx and not image2_idx:
+        directory = f'{state["article_directory"]}/images'
         _clear_images_directory(directory)
         images = _get_images(ws, workflow)
 
-        directory = f'{state["article_directory"]}/images'
         saved_image_paths = _save_images(images, directory)
-        print(Fore.LIGHT_BLUE, f"Saved images to {directory}")
+        print(Fore.LIGHTBLUE_EX, f"Saved images to {directory}")
 
         image1_idx, image2_idx = _prompt_for_image_selection(batch_size)
         
@@ -178,7 +178,8 @@ def _upload_image_to_wordpress(image_path, site="93simon7.wordpress.com"):
     response = requests.post(url, headers=headers, files=files)
     
     if response.status_code == 200:
-        return response.json()["media"][0]
+        response = response.json()
+        return response["media"][0]
     else:
         response.raise_for_status()
         
