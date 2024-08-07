@@ -2,7 +2,7 @@ from colorama import Fore
 from langchain_chroma import Chroma
 from pydantic import BaseModel, Field
 from outline import OutlineGenerator, ParagraphWriter
-from utililty import json_fixer, search_google, use_component, model
+from utililty import check_and_load_filled_outline_state, check_and_load_web_search_state, json_fixer, save_state, search_google, use_component, model
 from vectorestore import get_vectore_store, fill_vectorstore
 
 style_instructions = """### Writing style instructions ###
@@ -49,7 +49,7 @@ class SearchQueryGenerator:
     human = """Topic: {paragraph_title}\n\n{schema}"""
 
     
-
+@check_and_load_web_search_state
 def search_web_for_outline_paragraphs(state: dict, gl="us", hl="en") -> dict:
     outline = state["outline"]
     total_h2 = len(outline['h2_titles'])
@@ -68,7 +68,7 @@ def search_web_for_outline_paragraphs(state: dict, gl="us", hl="en") -> dict:
         generated_query = generated_query.get("query", generated_query)
         print(f"\t[H2] Searching for {generated_query}")
         
-        h2_results = search_google(generated_query, hl=hl, gl=gl)
+        h2_results = search_google(generated_query, hl=hl, gl=gl, search_type="nws")
         h2['web_search'] = {
             "generated_query": generated_query,
             "results": h2_results if "organic_results" in h2_results else {"organic_results": h2_results}
@@ -85,7 +85,7 @@ def search_web_for_outline_paragraphs(state: dict, gl="us", hl="en") -> dict:
                 generated_query = generated_query.get("query", generated_query)
                 print(f"\t\t[H3] Searching for {generated_query}")
                 
-                h3_results = search_google(generated_query, hl=hl, gl=gl)
+                h3_results = search_google(generated_query, hl=hl, gl=gl, search_type="nws")
                 h3['web_search'] = {
                     "generated_query": generated_query,
                     "results": h3_results if "organic_results" in h3_results else {"organic_results": h3_results}
@@ -140,6 +140,7 @@ def fill_outline_paragraphs(outline: dict, vectorstore: Chroma, n_sources: int) 
     return outline_copy
 
 
+@check_and_load_filled_outline_state
 def get_filled_outline(state):
     print(Fore.GREEN + f'[+] Starting filling outline with content...')
     vectorstore = get_vectore_store(state)

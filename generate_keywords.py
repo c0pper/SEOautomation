@@ -4,7 +4,7 @@ import json
 from typing import List
 from colorama import Fore
 from pydantic import BaseModel, Field
-from utililty import json_fixer
+from utililty import check_and_load_state, json_fixer
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from utililty import model
@@ -81,7 +81,7 @@ class LongtailKeywordsGenerator():
     human = """### Primary keyword:\n {p_kw}\n\n### Secondary keywords:\n {s_kw}\n\n### Related articles:\n{articles}\n\n{schema}"""
 
 
-
+@check_and_load_state(["primary_keyword"])
 def get_primary_keyword(state):
     print(Fore.LIGHTBLUE_EX + f'[+] Getting primary_keyword for topic {state["topic"]["name"]}')
     pk_articles = state["topic"]["articles"]
@@ -99,6 +99,7 @@ def get_primary_keyword(state):
     return state
 
 
+@check_and_load_state(["secondary_keywords"])
 def get_secondary_keywords(state):
     print(Fore.LIGHTBLUE_EX + f'[+] Getting secondary_keywords for topic {state["topic"]["name"]}')
     formatted_articles = state["topic"]["formatted_articles"]
@@ -115,6 +116,7 @@ def get_secondary_keywords(state):
     return state
 
 
+@check_and_load_state(["longtail_keywords"])
 def get_longtail_keywords(state):
     print(Fore.LIGHTBLUE_EX + f'[+] Getting longtail_keywords for topic {state["topic"]["name"]}')
     formatted_articles = state["topic"]["formatted_articles"]

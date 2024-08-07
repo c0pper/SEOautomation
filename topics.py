@@ -4,7 +4,7 @@ from colorama import Fore
 from langchain_openai import ChatOpenAI
 from langchain_core.pydantic_v1 import BaseModel, Field
 from trend import get_news_for_trend, ask_trend, get_trends
-from utililty import json_fixer, model
+from utililty import check_and_load_state, json_fixer, model
 from langchain_core.prompts import ChatPromptTemplate
 
 
@@ -76,6 +76,7 @@ class TopicsGenerator():
 # chosen_trend = ask_trend()
 # processed_news_results = get_news_for_trend(chosen_trend)
 
+@check_and_load_state(["topic.name"])
 def get_topics(state):
     trend = state["chosen_trend"]["name"]
     print(Fore.LIGHTBLUE_EX + f'[+] Getting topics for trend {trend}')
@@ -92,14 +93,6 @@ def get_topics(state):
       }
       for n in processed_news_results
     ]
-    # news_articles = [Article(
-    #         title=n['title'],
-    #         link=n['url'],
-    #         source=n['provider'],
-    #         date=n['published_date'],
-    #         snippet=' '.join(n['summary'].split()[:50])+"..." if n['summary'] else ' '.join(n['text'].split()[:50])+"...",
-    #         summary=n["summary"])
-    #     for n in processed_news_results]
     
     news_articles_shortened = [
         {
@@ -112,14 +105,6 @@ def get_topics(state):
         }
         for n in processed_news_results
     ]
-    # news_articles_shortened = [Article(
-    #         title=n['title'],
-    #         link="",
-    #         source="",
-    #         date="",
-    #         snippet=' '.join(n['summary'].split()[:50])+"..." if n['summary'] else ' '.join(n['text'].split()[:50])+"...",
-    #         summary="")
-    #     for n in processed_news_results]
 
     news_art_formatted = "\n-----\n".join([f"Article Title: {a['title']}\nArticle Snippet: {a['snippet']}" for a in news_articles_shortened][:4])
 

@@ -14,8 +14,11 @@
 # Standard Library imports
 ###################################
 
+from functools import wraps
+import os
 import re
 from typing import Dict
+from colorama import Fore
 import pytz
 import datetime
 import time
@@ -37,7 +40,6 @@ nltk.download('punkt')
 import serpapi
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-import os
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
@@ -304,6 +306,203 @@ def json_fixer(json_from_llm):
         return valid_json
     else:
         raise ValueError("Unable to generate valid JSON after maximum retries")
+
+def sanitize_string(string):
+    return re.sub(r'[^A-Za-z0-9 ]+', '', string).lower().replace(" ", "_")
+
+
+def save_state(state):
+    directory = "articles"
+
+    with open(f'{directory}/{state["tmp_name"]}', "w", encoding="utf8") as f:
+        json.dump(state, f, indent=4)
+
+
+
+def check_nested_keys(state, keys):
+    current_level = state
+    for key in keys:
+        if isinstance(current_level, dict) and key in current_level and current_level[key]:
+            current_level = current_level[key]
+        else:
+            return False
+    return True
+
+
+def check_and_load_state(required_keys):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(state, *args, **kwargs):
+            directory = "articles"
+            if state['tmp_name']:
+                file_path = f"{directory}/{state['tmp_name']}"
+                
+                if os.path.exists(file_path):
+                    with open(file_path, "r", encoding="utf8") as f:
+                        saved_state = json.load(f)
+                    
+                    all_keys_present = all(check_nested_keys(saved_state, keys.split('.')) for keys in required_keys)
+                    if all_keys_present:
+                        return saved_state
+            
+            result_state = func(state, *args, **kwargs)
+            with open(f'{directory}/{result_state["tmp_name"]}', "w", encoding="utf8") as f:
+                json.dump(result_state, f, indent=4)
+            return result_state
+        return wrapper
+    return decorator
+
+
+def check_web_search(state):
+    if "outline" not in state:
+        return False
+    
+    outline = state["outline"]
+    
+    for h2 in outline.get("h2_titles", []):
+        if not h2.get("web_search"):
+            return False
+        if h2.get("h3_titles"):
+            for h3 in h2["h3_titles"]:
+                if not h3.get("web_search"):
+                    return False
+    return True
+
+
+def check_and_load_web_search_state(func):
+    @wraps(func)
+    def wrapper(state, *args, **kwargs):
+        directory = "articles"
+        if state.get('tmp_name'):
+            file_path = f"{directory}/{state['tmp_name']}"
+            
+            if os.path.exists(file_path):
+                with open(file_path, "r", encoding="utf8") as f:
+                    saved_state = json.load(f)
+                
+                if check_web_search(saved_state):
+                    return saved_state
+        
+        result_state = func(state, *args, **kwargs)
+        with open(f'{directory}/{result_state["tmp_name"]}', "w", encoding="utf8") as f:
+            json.dump(result_state, f, indent=4)
+        return result_state
+    return wrapper
+
+
+def check_filled_outline(state):
+    if "outline" not in state:
+        return False
+    
+    outline = state["outline"]
+    
+    for h2 in outline.get("h2_titles", []):
+        if not h2.get("content") or not h2.get("sources"):
+            return False
+        if h2.get("h3_titles"):
+            for h3 in h2["h3_titles"]:
+                if not h3.get("content") or not h3.get("sources"):
+                    return False
+    return True
+
+
+def check_and_load_filled_outline_state(func):
+    @wraps(func)
+    def wrapper(state, *args, **kwargs):
+        directory = "articles"
+        if state.get('tmp_name'):
+            file_path = f"{directory}/{state['tmp_name']}"
+            
+            if os.path.exists(file_path):
+                with open(file_path, "r", encoding="utf8") as f:
+                    saved_state = json.load(f)
+                
+                if check_filled_outline(saved_state):
+                    return saved_state
+        
+        result_state = func(state, *args, **kwargs)
+        with open(f'{directory}/{result_state["tmp_name"]}', "w", encoding="utf8") as f:
+            json.dump(result_state, f, indent=4)
+        return result_state
+    return wrapper
+
+
+######### LINKS
+
+
+def contains_links(content):
+    url_pattern = re.compile(r'(https?://\S+)')
+    return bool(url_pattern.search(content))
+
+def check_links_in_outline(state):
+    if "outline" not in state:
+        return False
+    
+    outline = state["outline"]
+    
+    for h2 in outline.get("h2_titles", []):
+        if not contains_links(h2.get("content", "")):
+            return False
+        if h2.get("h3_titles"):
+            for h3 in h2["h3_titles"]:
+                if not contains_links(h3.get("content", "")):
+                    return False
+    return True
+
+
+def check_and_load_links_state(func):
+    @wraps(func)
+    def wrapper(state, *args, **kwargs):
+        directory = "articles"
+        if state.get('tmp_name'):
+            file_path = f"{directory}/{state['tmp_name']}"
+            
+            if os.path.exists(file_path):
+                with open(file_path, "r", encoding="utf8") as f:
+                    saved_state = json.load(f)
+                
+                if check_links_in_outline(saved_state):
+                    return saved_state
+        
+        result_state = func(state, *args, **kwargs)
+        with open(f'{directory}/{result_state["tmp_name"]}', "w", encoding="utf8") as f:
+            json.dump(result_state, f, indent=4)
+        return result_state
+    return wrapper
+
+
+import requests
+
+def create_wordpress_post(title, content, site_id="93simon7.wordpress.com", tags=None, categories=None):
+    print(Fore.BLUE + f'[+] Posting article...')
+    if not os.getenv("WP_TOKEN"):
+        raise ValueError("Missing wordpress token")
+    
+    token = os.getenv("WP_TOKEN")
+    url = f"https://public-api.wordpress.com/rest/v1.1/sites/{site_id}/posts/new"
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+    data = {
+        "title": title,
+        "content": content,
+        "tags": tags if tags else '',
+        "categories": categories if categories else '',
+        "status": "publish"  # You can change the status if needed
+    }
+    response = requests.post(url, headers=headers, data=data)
+
+    if response.status_code == 201:
+        print("Post created successfully!")
+        return response.json()
+    else:
+        print(f"Failed to create post: {response.status_code}")
+        print(response.json())
+        return None
+
+
+
+
 
 
 if __name__ == "__main__":

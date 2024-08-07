@@ -1,5 +1,6 @@
 # from refiner import make_article
 import json
+from random import randint
 from trend import ask_trend, get_news_for_trend
 from topics import get_topics
 from generate_keywords import get_primary_keyword, get_secondary_keywords, get_longtail_keywords
@@ -10,12 +11,14 @@ from linker import add_links_to_outline
 from bold_words import add_bolds_to_outline
 from refiner import get_intro, get_conclusion, get_title, finalize_article
 from image_generation import get_sd_prompt, generate_and_save_images
+from utililty import create_wordpress_post
 
 
     
 
 def main():
     state = {
+        "tmp_name": "",
         "chosen_trend": {
             "name": "where's my phone google",
             "processed_news": [],
@@ -57,11 +60,17 @@ def main():
     state = get_conclusion(state)
     state = get_title(state)
     state = get_sd_prompt(state)
-    state = generate_and_save_images(state)
+    state = generate_and_save_images(
+        state, 
+        workflow=json.load(open("image_generator_api.json", "r")), 
+        seed=randint(0, 10000),
+        steps=6,
+        batch_size=4
+    )
     state = finalize_article(state)
-    print(state)
     return state
 
 
 if __name__ == "__main__":
-    main()
+    state = main()
+    create_wordpress_post(state["article_title"], state["full_article"], tags=None, categories=None)

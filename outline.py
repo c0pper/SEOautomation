@@ -3,7 +3,7 @@ from colorama import Fore
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 # from generate_keywords import pk, sec_keys, sec_keys_list, longtail_keys
-from utililty import json_fixer, use_component, model
+from utililty import check_and_load_state, json_fixer, use_component, model
 
 
 
@@ -136,6 +136,7 @@ class OutlineGenerator:
         return outline_str
 
 
+@check_and_load_state(["outline"])
 def get_outline(state):
     print(Fore.LIGHTBLUE_EX + f'[+] Getting outline...')
     sk = state["secondary_keywords"]

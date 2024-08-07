@@ -10,7 +10,7 @@ import uuid
 import json
 import urllib.request
 import urllib.parse
-from utililty import model
+from utililty import check_and_load_state, model
 from PIL import Image
 
 server_address = "127.0.0.1:8188"
@@ -31,6 +31,7 @@ Based on the introduction craft a prompt for stable diffusion to create an image
 Generate only the prompt text, without any additional text."""
 
 
+@check_and_load_state(["sd_prompt"])
 def get_sd_prompt(state):
     print(Fore.LIGHTBLUE_EX + f'[+] Generating SD prompt...')
     prompt = model.invoke([
@@ -124,6 +125,7 @@ def _clear_images_directory(directory):
                 print(Fore.YELLOW, f"Failed to delete {file_path}. Reason: {e}")
 
 
+@check_and_load_state(["article_images"])
 def generate_and_save_images(state, workflow, seed=random.randint(1,10000), steps=6, batch_size=4):
     print(Fore.LIGHTBLUE_EX + f'[+] Generating images...')
     ws = websocket.WebSocket()

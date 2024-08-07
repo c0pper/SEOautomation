@@ -6,7 +6,7 @@ from langchain_chroma import Chroma
 import re
 import os
 from hashlib import md5
-from utililty import text_getter
+from utililty import check_and_load_state, text_getter
 
 
 text_splitter = RecursiveCharacterTextSplitter(
@@ -28,6 +28,7 @@ def split_docs(docs):
     return splitted_docs
 
 
+@check_and_load_state(["vectore_store.name", "vectore_store.directory"])
 def get_vectore_store_dir(state):
     vectorstore_trend_name = state["topic"]["name"].lower().replace(" ", "_")
     hash_id = md5(vectorstore_trend_name.encode()).hexdigest()
@@ -68,12 +69,12 @@ def fill_vectorstore(outline_with_searches:dict, vectorstore: Chroma):
         outline_copy = outline_with_searches.copy()  # copy outline so i keep the empty version
         total_titles = len(outline_copy["h2_titles"])
         
-        for index, h2 in enumerate(outline_copy["h2_titles"]):
+        for index, h2 in enumerate(outline_copy.get("h2_titles", [])):
             print(f"\t[+] Adding docs for ## {h2['title']} ({index + 1}/{total_titles})...")
             splitted_docs = organic_results_to_splitted_docs(h2["web_search"])
             vectorstore.add_documents(splitted_docs)
 
-            if h2["h3_titles"]:
+            if h2.get('h3_titles'):
                 for h3 in h2["h3_titles"]:
                     print(f"\t\t[+] Adding docs for ### {h3['title']}...")
                     splitted_docs = organic_results_to_splitted_docs(h3["web_search"])

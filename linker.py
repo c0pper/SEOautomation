@@ -3,7 +3,7 @@ from colorama import Fore
 from sentence_transformers import SentenceTransformer, util
 import torch
 from langchain_core.documents import Document
-from utililty import nlp
+from utililty import check_and_load_links_state, nlp
 
 
 
@@ -86,6 +86,7 @@ def get_source_by_string(string:str, sources:List[dict]) -> Document:
             return s
         
 
+@check_and_load_links_state
 def add_links_to_outline(state:dict, similarity_threshold=0.5) -> dict:
     print(Fore.LIGHTBLUE_EX + f'[+] Adding links to article...')
     outline_copy = state["outline"]  # copy outline so i keep the empty version
@@ -102,7 +103,7 @@ def add_links_to_outline(state:dict, similarity_threshold=0.5) -> dict:
                 matches.append({"par_phrase": noun_phrase_for_link, "best_match": {"url": source["metadata"]["url"]}})
         h2["content"] = create_links_in_paragraph(h2["content"], matches)
 
-        if h2["h3_titles"]:
+        if h2.get("h3_titles"):
             for h3 in h2["h3_titles"]:
                 print(Fore.LIGHTBLUE_EX + f'\t[H3] Adding links to {h3["title"]}...')
                 mapping = map_phrases_to_sources(h3["content"], h3["sources"], similarity_threshold=similarity_threshold)

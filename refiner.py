@@ -6,7 +6,7 @@ from colorama import Fore
 from pydantic import BaseModel, Field
 from outline import OutlineGenerator
 from parapgraphs import style_instructions
-from utililty import json_fixer, use_component, model
+from utililty import check_and_load_state, json_fixer, model, sanitize_string
 from outline import ParagraphWriter
 
 
@@ -160,7 +160,7 @@ def stitch_h2_paragraphs(outline: dict, middle_image:str) -> str:
         # Add H2 content
         article_body += f"{to_wp_tags(h2['content'], 'paragraph')}\n\n"
         # If there are H3 titles, add them
-        if h2["h3_titles"]:
+        if h2.get("h3_titles"):
             for h3 in h2["h3_titles"]:
                 # Add H3 title
                 article_body += f"{to_wp_tags(h3['title'], 'h3')}\n"
@@ -169,6 +169,8 @@ def stitch_h2_paragraphs(outline: dict, middle_image:str) -> str:
 
     return article_body.strip()
 
+
+@check_and_load_state(["introduction"])
 def get_intro(state):
     print(Fore.LIGHTBLUE_EX + f'[+] Generating intro...')
     outline = OutlineGenerator.print_formatted_outline(state["outline"])
@@ -181,6 +183,8 @@ def get_intro(state):
     state["introduction"] = introduction.get("introduction", introduction)
     return state
 
+
+@check_and_load_state(["conclusion"])
 def get_conclusion(state):
     print(Fore.LIGHTBLUE_EX + f'[+] Generating conclusion...')
     outline = OutlineGenerator.print_formatted_outline(state["outline"])
@@ -195,13 +199,14 @@ def get_conclusion(state):
 
 
 def get_article_directory(title):
-    sanitized_name = re.sub(r'[^A-Za-z0-9 ]+', '', title).lower().replace(" ", "_")
-    directory = f"articles/{"_".join(sanitized_name.split("_")[:5])}"
+    sanitized_name = sanitize_string(title)
+    directory = f'articles/{"_".join(sanitized_name.split("_")[:5])}'
     if not os.path.exists(directory):
         os.makedirs(directory)
     return directory
 
 
+@check_and_load_state(["article_title"])
 def get_title(state):
     print(Fore.LIGHTBLUE_EX + f'[+] Generating title...')
     outline = OutlineGenerator.print_formatted_outline(state["outline"])
@@ -284,14 +289,15 @@ def to_wp_tags(content: Union[List, str], md_attribute, img_id=None, img_width=N
 
 
 def get_wp_images_snippets(state):
-    image1_url = state["article_images"][0].get("URL")
-    image2_url = state["article_images"][1].get("URL")
+    image1_url = state["article_images"][0].get("upload_response").get("URL")
+    image2_url = state["article_images"][1].get("upload_response").get("URL")
     
     wp_image1 = to_wp_tags(image1_url, "image", state["article_images"][0].get("ID"))
     wp_image2 = to_wp_tags(image2_url, "image", state["article_images"][1].get("ID"))
     return wp_image1, wp_image2
 
 
+@check_and_load_state(["full_article"])
 def finalize_article(state):
     print(Fore.GREEN + f'[+] Finalizing article...')
     intro = state["introduction"]
@@ -309,7 +315,7 @@ def finalize_article(state):
     print(article_intro_concl)
     
     save_article_as_markdown(article_intro_concl, state["article_directory"])
-    save_article_state_as_json(article_intro_concl, state["article_directory"])
+    save_article_state_as_json(state, state["article_directory"])
     
     state["full_article"] = article_intro_concl
     
