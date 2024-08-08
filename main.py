@@ -1,6 +1,7 @@
 # from refiner import make_article
 import json
 from random import randint
+from image_scraping import scrape_freepik
 from trend import ask_trend, get_news_for_trend
 from topics import get_topics
 from generate_keywords import get_primary_keyword, get_secondary_keywords, get_longtail_keywords
@@ -19,6 +20,7 @@ from utililty import create_wordpress_post
 def main():
     state = {
         "tmp_name": "",
+        "img_mode": "",
         "chosen_trend": {
             "name": "where's my phone google",
             "processed_news": [],
@@ -41,6 +43,7 @@ def main():
         "article_title": "",
         "full_article": "",
         "sd_prompt": "",
+        "img_query": "",
         "article_images": []
     }
     
@@ -59,14 +62,17 @@ def main():
     state = get_intro(state)
     state = get_conclusion(state)
     state = get_title(state)
-    state = get_sd_prompt(state)
-    state = generate_and_save_images(
-        state, 
-        workflow=json.load(open("image_generator_api.json", "r")), 
-        seed=randint(0, 10000),
-        steps=6,
-        batch_size=4
-    )
+    if state["img_mode"] == "gen":
+        state = get_sd_prompt(state)
+        state = generate_and_save_images(
+            state, 
+            workflow=json.load(open("image_generator_api.json", "r")), 
+            seed=randint(0, 10000),
+            steps=6,
+            batch_size=4
+        )
+    else:
+        state = scrape_freepik(state)
     state = finalize_article(state)
     return state
 

@@ -12,6 +12,7 @@ import urllib.request
 import urllib.parse
 from utililty import check_and_load_state, model
 from PIL import Image
+from image_scraping import scrape_freepik, FreepikKeywordGenerator
 
 server_address = "127.0.0.1:8188"
 client_id = str(uuid.uuid4())
@@ -29,6 +30,8 @@ Task:
 Based on the introduction craft a prompt for stable diffusion to create an image appropriate for the article
 
 Generate only the prompt text, without any additional text."""
+
+
 
 
 @check_and_load_state(["sd_prompt"])
@@ -80,7 +83,7 @@ def _get_images(ws, prompt):
 
 workflow = json.load(open("image_generator_api.json", "r"))
 
-def _save_images(images, directory):
+def _save_images_comfyui(images, directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
     
@@ -128,26 +131,35 @@ def _clear_images_directory(directory):
 @check_and_load_state(["article_images"])
 def generate_and_save_images(state, workflow, seed=random.randint(1,10000), steps=6, batch_size=4):
     print(Fore.LIGHTBLUE_EX + f'[+] Generating images...')
-    ws = websocket.WebSocket()
-    ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
-
-    positive_prompt = state["sd_prompt"]
-    workflow["6"]["inputs"]["text"] = positive_prompt
-    workflow["3"]["inputs"]["seed"] = seed
-    workflow["3"]["inputs"]["steps"] = steps
-    workflow["5"]["inputs"]["batch_size"] = batch_size
-
+    
     image1_idx = None
     image2_idx = None
     while not image1_idx and not image2_idx:
         directory = f'{state["article_directory"]}/images'
         _clear_images_directory(directory)
-        images = _get_images(ws, workflow)
+        
+        if state["img_mode"] == "gen":
+            ws = websocket.WebSocket()
+            ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
 
-        saved_image_paths = _save_images(images, directory)
+            positive_prompt = state["sd_prompt"]
+            workflow["6"]["inputs"]["text"] = positive_prompt
+            workflow["3"]["inputs"]["seed"] = seed
+            workflow["3"]["inputs"]["steps"] = steps
+            workflow["5"]["inputs"]["batch_size"] = batch_size
+
+            images = _get_images(ws, workflow)
+            saved_image_paths = _save_images_comfyui(images, directory)
+            
+        else:
+            saved_image_paths = scrape_freepik(state)
+            
         print(Fore.LIGHTBLUE_EX, f"Saved images to {directory}")
 
-        image1_idx, image2_idx = _prompt_for_image_selection(batch_size)
+        total_files = len([name for name in os.listdir(directory) if os.path.isfile(os.path.join(directory, name))])
+        image1_idx, image2_idx = _prompt_for_image_selection(total_files)
+        if state["img_mode"] != "gen":
+            image1_idx, image2_idx = image1_idx-1, image2_idx-1
         
     state["article_images"] = [
         {
