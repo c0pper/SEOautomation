@@ -21,7 +21,7 @@ def create_links_in_paragraph(paragraph: str, matches: List[Dict[str, Any]]) -> 
         url = match['best_match']['url']
         markdown_link = f"[{par_phrase.strip()}]({url})"
         wp_link = f'<a href={url}>{par_phrase.strip()}</a>'
-        if markdown_link in paragraph:
+        if markdown_link in paragraph or wp_link in paragraph:
             continue
         else:
             if url not in paragraph:
@@ -33,32 +33,34 @@ def create_links_in_paragraph(paragraph: str, matches: List[Dict[str, Any]]) -> 
 def get_most_similar_element(element:str, list_of_elements:list):
 
     # Initialize the model
+    if list_of_elements:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # List of sentences (corpus)
+        # Generate embeddings for the corpus
+        corpus_embeddings = sent_transformer_model.encode(list_of_elements, convert_to_tensor=True).to(device)
 
+        # Generate embedding for the query
+        query_embedding = sent_transformer_model.encode(element, convert_to_tensor=True).to(device)
 
-    # Generate embeddings for the corpus
-    corpus_embeddings = sent_transformer_model.encode(list_of_elements, convert_to_tensor=True)
+        # Compute cosine similarity between the query embedding and corpus embeddings
+        cosine_scores = util.pytorch_cos_sim(query_embedding, corpus_embeddings)
 
-    # Generate embedding for the query
-    query_embedding = sent_transformer_model.encode(element, convert_to_tensor=True)
+        # Get the most similar sentence
+        top_score, top_idx = torch.max(cosine_scores, dim=1)
 
-    # Compute cosine similarity between the query embedding and corpus embeddings
-    cosine_scores = util.pytorch_cos_sim(query_embedding, corpus_embeddings)
+        # Print the most similar sentence and its score
+        most_similar_sentence = list_of_elements[top_idx.item()]
+        most_similar_score = top_score.item()
 
-    # Get the most similar sentence
-    top_score, top_idx = torch.max(cosine_scores, dim=1)
-
-    # Print the most similar sentence and its score
-    most_similar_sentence = list_of_elements[top_idx.item()]
-    most_similar_score = top_score.item()
-
-    if most_similar_score > 0.50:
-        if len(most_similar_sentence) > 5:
-            print(element)
-            print(f"Most similar sentence: '{most_similar_sentence.strip()}' {type(most_similar_sentence)}")
-            print(f"(Score: {most_similar_score:.4f})\n-------\n")
-    return most_similar_sentence, most_similar_score
+        if most_similar_score > 0.50:
+            if len(most_similar_sentence) > 5:
+                print(element)
+                print(f"Most similar sentence: '{most_similar_sentence.strip()}' {type(most_similar_sentence)}")
+                print(f"(Score: {most_similar_score:.4f})\n-------\n")
+        return most_similar_sentence, most_similar_score
+    
+    else:
+        return None, None
 
 
 
@@ -67,15 +69,19 @@ def map_phrases_to_sources(paragraph: str, sources: List[dict], similarity_thres
 
     all_sources_sentences = []
     for s in sources:
-        sentences = s["page_content"].split(".")
+        sentences = [l.strip() for l in s["page_content"].split(".")]
         all_sources_sentences.extend(sentences)
     
+    if not all_sources_sentences:
+        print("!")
+
     mapping= []
     for s in paragraph_sentences:
         if len(s) > 2:
             most_similar_source_sentence, score = get_most_similar_element(s, all_sources_sentences)
-            if score >= similarity_threshold:
-                mapping.append({"par_sent": s, "most_similar": most_similar_source_sentence, "score": score})
+            if most_similar_source_sentence:
+                if score >= similarity_threshold:
+                    mapping.append({"par_sent": s, "most_similar": most_similar_source_sentence, "score": score})
     
     return mapping
 
@@ -91,6 +97,8 @@ def add_links_to_outline(state:dict, similarity_threshold=0.5) -> dict:
     print(Fore.LIGHTBLUE_EX + f'[+] Adding links to article...')
     outline_copy = state["outline"]  # copy outline so i keep the empty version
     for h2 in outline_copy["h2_titles"]:
+        if "Live Streaming and Best Time to" in h2["title"]:
+            print("!")
         print(Fore.LIGHTBLUE_EX + f'\t[H2] Adding links to {h2["title"]}...')
         mapping = map_phrases_to_sources(h2["content"], h2["sources"], similarity_threshold=similarity_threshold)
         matches = []
@@ -98,9 +106,10 @@ def add_links_to_outline(state:dict, similarity_threshold=0.5) -> dict:
             par_sent_phrases = extract_key_phrases(m["par_sent"])
             most_similar_source_phrase = m["most_similar"]
             noun_phrase_for_link, score = get_most_similar_element(most_similar_source_phrase, par_sent_phrases)
-            source = get_source_by_string(most_similar_source_phrase, h2["sources"])
-            if source: # come fa a non esserci source? #TODO
-                matches.append({"par_phrase": noun_phrase_for_link, "best_match": {"url": source["metadata"]["url"]}})
+            if noun_phrase_for_link:
+                source = get_source_by_string(most_similar_source_phrase, h2["sources"])
+                if source: # come fa a non esserci source? #TODO
+                    matches.append({"par_phrase": noun_phrase_for_link, "best_match": {"url": source["metadata"]["url"]}})
         h2["content"] = create_links_in_paragraph(h2["content"], matches)
 
         if h2.get("h3_titles"):
@@ -112,9 +121,10 @@ def add_links_to_outline(state:dict, similarity_threshold=0.5) -> dict:
                     par_sent_phrases = extract_key_phrases(m["par_sent"])
                     most_similar_source_phrase = m["most_similar"]
                     noun_phrase_for_link, score = get_most_similar_element(most_similar_source_phrase, par_sent_phrases)
-                    source = get_source_by_string(most_similar_source_phrase, h3["sources"])
-                    if source:
-                        matches.append({"par_phrase": noun_phrase_for_link, "best_match": {"url": source["metadata"]["url"]}})
+                    if noun_phrase_for_link:
+                        source = get_source_by_string(most_similar_source_phrase, h3["sources"])
+                        if source:
+                            matches.append({"par_phrase": noun_phrase_for_link, "best_match": {"url": source["metadata"]["url"]}})
                 h3["content"] = create_links_in_paragraph(h3["content"], matches)
     state["outline"] = outline_copy
     return state

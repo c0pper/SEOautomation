@@ -129,7 +129,7 @@ def _clear_images_directory(directory):
 
 
 @check_and_load_state(["article_images"])
-def generate_and_save_images(state, workflow, seed=random.randint(1,10000), steps=6, batch_size=4):
+def generate_and_save_images(state, workflow=None, seed=random.randint(1,10000), steps=6, batch_size=4):
     print(Fore.LIGHTBLUE_EX + f'[+] Generating images...')
     
     image1_idx = None
@@ -139,6 +139,8 @@ def generate_and_save_images(state, workflow, seed=random.randint(1,10000), step
         _clear_images_directory(directory)
         
         if state["img_mode"] == "gen":
+            if not workflow:
+                workflow = json.load(open("image_generator_api.json", "r"))
             ws = websocket.WebSocket()
             ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
 
@@ -150,6 +152,7 @@ def generate_and_save_images(state, workflow, seed=random.randint(1,10000), step
 
             images = _get_images(ws, workflow)
             saved_image_paths = _save_images_comfyui(images, directory)
+            ws.close()
             
         else:
             saved_image_paths = scrape_freepik(state)
@@ -171,10 +174,7 @@ def generate_and_save_images(state, workflow, seed=random.randint(1,10000), step
             "upload_response": _upload_image_to_wordpress(saved_image_paths[image2_idx])
         }
     ]
-    
-    
-    
-    ws.close()
+        
     return state
 
 

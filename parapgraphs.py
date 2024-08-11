@@ -83,6 +83,8 @@ def search_web_for_outline_paragraphs(state: dict, gl="us", hl="en") -> dict:
                     
                 generated_query = json_fixer(llm_response)
                 generated_query = generated_query.get("query", generated_query)
+                if isinstance(generated_query, dict):
+                    generated_query = " ".join([generated_query[key] for key in generated_query.keys()])
                 print(f"\t\t[H3] Searching for {generated_query}")
                 
                 h3_results = search_google(generated_query, hl=hl, gl=gl, search_type="nws")

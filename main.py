@@ -1,7 +1,7 @@
 # from refiner import make_article
 import json
 from random import randint
-from image_scraping import scrape_freepik
+from image_scraping import get_img_query, scrape_freepik
 from trend import ask_trend, get_news_for_trend
 from topics import get_topics
 from generate_keywords import get_primary_keyword, get_secondary_keywords, get_longtail_keywords
@@ -66,13 +66,13 @@ def main():
         state = get_sd_prompt(state)
         state = generate_and_save_images(
             state, 
-            workflow=json.load(open("image_generator_api.json", "r")), 
             seed=randint(0, 10000),
             steps=6,
             batch_size=4
         )
     else:
-        state = scrape_freepik(state)
+        state = get_img_query(state)
+        state = generate_and_save_images(state)
     state = finalize_article(state)
     return state
 
