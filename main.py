@@ -1,7 +1,9 @@
 # from refiner import make_article
 import json
 from random import randint
+from categories import get_categories
 from image_scraping import get_img_query, scrape_freepik
+from tags import get_tags
 from trend import ask_trend, get_news_for_trend
 from topics import get_topics
 from generate_keywords import get_primary_keyword, get_secondary_keywords, get_longtail_keywords
@@ -44,7 +46,9 @@ def main():
         "full_article": "",
         "sd_prompt": "",
         "img_query": "",
-        "article_images": []
+        "article_images": [],
+        "categories": [],
+        "tags": []
     }
     
     state = ask_trend(state)
@@ -74,9 +78,11 @@ def main():
         state = get_img_query(state)
         state = generate_and_save_images(state)
     state = finalize_article(state)
+    state = get_categories(state)
+    state = get_tags(state)
     return state
 
 
 if __name__ == "__main__":
     state = main()
-    create_wordpress_post(state["article_title"], state["full_article"], tags=None, categories=None)
+    create_wordpress_post(state["article_title"], state["full_article"], tags=state["tags"], categories=state["categories"])
