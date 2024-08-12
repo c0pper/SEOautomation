@@ -45,7 +45,7 @@ def organic_results_to_splitted_docs(web_search:dict) -> list:
     urls = [res["link"] for res in web_search["results"]["organic_results"]]
     docs = [list(text_getter(url))[0] for url in urls]
     docs = [d for d in docs if isinstance(d, dict)]
-    docs = [Document(page_content=d["text"], metadata={'title':d["title"], 'url': d["url"], 'query': web_search["generated_query"]}) for d in docs if d]
+    docs = [Document(page_content=d["text"], metadata={'title':d["title"], 'url': d["url"], 'query': web_search["generated_query"]}) for d in docs if d and "youtube" not in d['url']]
     splitted_docs = split_docs(docs)
     return splitted_docs
 
@@ -64,6 +64,7 @@ def get_vectore_store(state):
 
 def fill_vectorstore(outline_with_searches:dict, vectorstore: Chroma):
     n_doc = len(vectorstore.get()['documents'])
+    maximum_batch_size = 166
     if n_doc < 2:
         print(Fore.LIGHTBLUE_EX + f'[+] Populating vectorstore...')
         outline_copy = outline_with_searches.copy()  # copy outline so i keep the empty version
@@ -72,12 +73,12 @@ def fill_vectorstore(outline_with_searches:dict, vectorstore: Chroma):
         for index, h2 in enumerate(outline_copy.get("h2_titles", [])):
             print(f"\t[+] Adding docs for ## {h2['title']} ({index + 1}/{total_titles})...")
             splitted_docs = organic_results_to_splitted_docs(h2["web_search"])
-            vectorstore.add_documents(splitted_docs)
+            vectorstore.add_documents(splitted_docs if len(splitted_docs) < maximum_batch_size else splitted_docs[:maximum_batch_size])
 
             if h2.get('h3_titles'):
                 for h3 in h2["h3_titles"]:
                     print(f"\t\t[+] Adding docs for ### {h3['title']}...")
                     splitted_docs = organic_results_to_splitted_docs(h3["web_search"])
-                    vectorstore.add_documents(splitted_docs)
+                    vectorstore.add_documents(splitted_docs if len(splitted_docs) < maximum_batch_size else splitted_docs[:maximum_batch_size])
     else:
         print(Fore.LIGHTBLUE_EX + f'[+] Skipping vectorstore population... already found {n_doc} documents')

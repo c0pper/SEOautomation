@@ -23,6 +23,7 @@ def main():
     state = {
         "tmp_name": "",
         "img_mode": "",
+        "generate_yt_script": bool(input("Generate also youtube script? Leave empty for no, type anything for yes. \n> ")),
         "chosen_trend": {
             "name": "where's my phone google",
             "processed_news": [],

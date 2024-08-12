@@ -1,41 +1,5 @@
-from typing import List, Optional, Union
 from colorama import Fore
-from langchain_openai import ChatOpenAI
-from pydantic import BaseModel, Field
-# from generate_keywords import pk, sec_keys, sec_keys_list, longtail_keys
-from utililty import check_and_load_state, json_fixer, use_component, model
-
-
-
-
-class ParagraphWriter:
-    schema = """
-    ### Instructions
-    Generate the paragraph adhering to the following json schema:
-    {
-        "paragraph": {
-            "type": "string",
-            "description": "The content of the paragraph"
-        },
-        "required": ["paragraph"],
-    }
-
-    Only respond with valid json which can be parsed in python.
-    """
-    
-    style_instructions = """### Writing style instructions ###
-- Use Short Sentences: Keep sentences short and to the point.
-- Where applicable, use bullet points, and numbered lists for readability.
-- Active Voice: Use active voice where possible.
-- Transitional Words: Use words like “therefore,” “however,” and “moreover” to improve flow.
-- Make sure a 13 yeard old could understand your writing.
-- The perfect paragraph should be between 50 and 150 words long.
-- Banned words: vibrant, delve, unravel, journey, multifaceted, bustling, landscape, testament, realm, embark, crucial, vital, ensure.
-"""
-    
-    system = """You are an expert SEO article writer. You will write the content of a paragraph based on the provided overall outline and paragraph title."""
-    human = """### Overall article outline:\n {outline}\n\n### Context:\n{context}\n\n\n### Based on the provided context, write a 50-100 words paragraph about '{p_title}'\n\n{style}\n\n{schema}"""
-
+from utililty import check_and_load_state, json_fixer, model
 
 
 class OutlineGenerator:

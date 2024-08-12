@@ -46,6 +46,7 @@ from selenium.webdriver.common.by import By
 nlp = spacy.load("en_core_web_lg")
 model = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0)
 RIFIUTA_COOKIE_BUTTON_ID = "W0wltc"
+N_SOURCES_FROM_VECTORSTORE = 5
 
 
 def scrape_google(query, search_type=None):
@@ -66,7 +67,7 @@ def scrape_google(query, search_type=None):
     # Wait for the results to load
     time.sleep(2)
     
-    if search_type == "nws":
+    if search_type == "news":
         notizie_button = driver.find_element(By.XPATH, "//a//div[text()='Notizie']")
         notizie_button.click()
     

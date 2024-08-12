@@ -3,11 +3,9 @@ import os
 import re
 from typing import List, Union
 from colorama import Fore
-from pydantic import BaseModel, Field
 from outline import OutlineGenerator
-from parapgraphs import style_instructions
 from utililty import check_and_load_state, json_fixer, model, sanitize_string
-from outline import ParagraphWriter
+from parapgraphs import ParagraphWriter
 
 
 class IntroductionWriter:
