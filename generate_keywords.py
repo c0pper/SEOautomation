@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from utililty import check_and_load_state, json_fixer
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-from utililty import model
+from utililty import gpt35
 
 
 
@@ -87,7 +87,7 @@ def get_primary_keyword(state):
     pk_articles = state["topic"]["articles"]
     formatted_articles = "\n----\n".join([f'Title: {a["title"]}\nSnippet: {a["snippet"]}' for a in pk_articles])
 
-    llm_response = model.invoke([
+    llm_response = gpt35.invoke([
         ("system", PrimaryKeywordGenerator.system),
         ("human", PrimaryKeywordGenerator.human.format(articles=formatted_articles, schema=PrimaryKeywordGenerator.schema)),
     ]).content
@@ -105,7 +105,7 @@ def get_secondary_keywords(state):
     formatted_articles = state["topic"]["formatted_articles"]
     pk = state["primary_keyword"]
     
-    llm_response = model.invoke([
+    llm_response = gpt35.invoke([
         ("system", SecondaryKeywordGenerator.system),
         ("human", SecondaryKeywordGenerator.human.format(p_kw=pk, articles=formatted_articles, schema=SecondaryKeywordGenerator.schema)),
     ]).content
@@ -123,7 +123,7 @@ def get_longtail_keywords(state):
     pk = state["primary_keyword"]
     sk = state["secondary_keywords"]
     
-    llm_response = model.invoke([
+    llm_response = gpt35.invoke([
         ("system", LongtailKeywordsGenerator.system),
         ("human", LongtailKeywordsGenerator.human.format(p_kw=pk, s_kw=sk, articles=formatted_articles, schema=LongtailKeywordsGenerator.schema)),
     ]).content

@@ -10,7 +10,7 @@ import uuid
 import json
 import urllib.request
 import urllib.parse
-from utililty import check_and_load_state, model
+from utililty import check_and_load_state, gpt35
 from PIL import Image
 from image_scraping import scrape_freepik, FreepikKeywordGenerator
 
@@ -37,7 +37,7 @@ Generate only the prompt text, without any additional text."""
 @check_and_load_state(["sd_prompt"])
 def get_sd_prompt(state):
     print(Fore.LIGHTBLUE_EX + f'[+] Generating SD prompt...')
-    prompt = model.invoke([
+    prompt = gpt35.invoke([
         ("system", ImagePromptGenerator.system),
         ("human", ImagePromptGenerator.human.format(introduction=state["introduction"])),
     ]).content

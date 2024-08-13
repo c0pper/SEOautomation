@@ -60,14 +60,14 @@ def create_bolds_in_paragraph(paragraph: str, percent_bold_words_per_para:int=4,
 
 
 def add_bolds_to_outline(state: dict, percent_bold_words_per_para=10) -> dict:
-    outline_copy = state["outline"]  # copy outline so i keep the empty version
+    outline_copy = state["linked_outline"]  # copy outline so i keep the empty version
     for h2 in outline_copy["h2_titles"]:
         h2["content"] = create_bolds_in_paragraph(h2["content"], percent_bold_words_per_para)
 
         if h2.get("h3_titles"):
             for h3 in h2["h3_titles"]:
                 h3["content"] = create_bolds_in_paragraph(h3["content"], percent_bold_words_per_para)
-    state["outline"] = outline_copy
+    state["bolded_outline"] = outline_copy
     return state
 
 

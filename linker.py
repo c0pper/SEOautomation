@@ -95,7 +95,7 @@ def get_source_by_string(string:str, sources:List[dict]) -> Document:
 @check_and_load_links_state
 def add_links_to_outline(state:dict, similarity_threshold=0.5) -> dict:
     print(Fore.LIGHTBLUE_EX + f'[+] Adding links to article...')
-    outline_copy = state["outline"]  # copy outline so i keep the empty version
+    outline_copy = state["filled_outline"]  # copy outline so i keep the empty version
     for h2 in outline_copy["h2_titles"]:
         if "Live Streaming and Best Time to" in h2["title"]:
             print("!")
@@ -126,7 +126,7 @@ def add_links_to_outline(state:dict, similarity_threshold=0.5) -> dict:
                         if source:
                             matches.append({"par_phrase": noun_phrase_for_link, "best_match": {"url": source["metadata"]["url"]}})
                 h3["content"] = create_links_in_paragraph(h3["content"], matches)
-    state["outline"] = outline_copy
+    state["linked_outline"] = outline_copy
     return state
 
 

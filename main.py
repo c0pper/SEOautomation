@@ -2,6 +2,7 @@
 import json
 from random import randint
 from categories import get_categories
+from content_expansion import get_anecdote
 from image_scraping import get_img_query, scrape_freepik
 from tags import get_tags
 from trend import ask_trend, get_news_for_trend
@@ -23,7 +24,6 @@ def main():
     state = {
         "tmp_name": "",
         "img_mode": "",
-        "generate_yt_script": bool(input("Generate also youtube script? Leave empty for no, type anything for yes. \n> ")),
         "chosen_trend": {
             "name": "where's my phone google",
             "processed_news": [],
@@ -79,6 +79,7 @@ def main():
         state = get_img_query(state)
         state = generate_and_save_images(state)
     state = finalize_article(state)
+    state = get_anecdote(state)
     state = get_categories(state)
     state = get_tags(state)
     return state

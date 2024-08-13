@@ -7,7 +7,7 @@ from selenium.common.exceptions import StaleElementReferenceException
 import os
 import requests
 
-from utililty import check_and_load_state, model
+from utililty import check_and_load_state, gpt35
 
 
 class FreepikKeywordGenerator:
@@ -28,7 +28,7 @@ Generate only the keyword or keyphrase, without any additional text."""
 @check_and_load_state(["img_query"])
 def get_img_query(state):
     print(Fore.LIGHTBLUE_EX + f'[+] Generating Freepik keyword...')
-    keywords = model.invoke([
+    keywords = gpt35.invoke([
         ("system", FreepikKeywordGenerator.system),
         ("human", FreepikKeywordGenerator.human.format(introduction=state["introduction"])),
     ]).content

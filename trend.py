@@ -2,6 +2,7 @@ import serpapi
 from utililty import check_and_load_state, search_google, text_getter, sanitize_string, save_state
 import os
 from colorama import Fore
+from parapgraphs import get_search_type
 
 def get_trends(geo:str="IT"):
     params = {
@@ -66,16 +67,18 @@ def get_news_for_trend(state):
     trend = state["chosen_trend"]["name"]
     print(Fore.LIGHTBLUE_EX + f'[+] Getting news for trend {trend}')
     # news_results = search_google(trend, search_type="nws")["news_results"]
-    news_results = search_google(trend, search_type="nws")
-    if not news_results:
+    search_type = get_search_type(trend)
+    results = search_google(trend, search_type=search_type)
+    if not results:
         raise ValueError(f"No news returned for trend {trend}")
     
-    processed_news_results = [text_getter(n["link"]) for n in news_results]
+    processed_news_results = [text_getter(n["link"]) for n in results if "youtube" not in n["link"]]
     processed_news_results = [list(pn)[0] for pn in processed_news_results]
     processed_news_results = [pn for pn in processed_news_results if isinstance(pn, dict)]
     processed_news_results = [pn for pn in processed_news_results if pn["text"] != "Unable to reach website."]
     
     state["chosen_trend"]["processed_news"] = processed_news_results
+    state["chosen_trend"]["search_type"] = search_type
     return state
 
 

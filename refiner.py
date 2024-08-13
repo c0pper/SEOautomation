@@ -1,10 +1,9 @@
 import json
 import os
 import re
-from typing import List, Union
+from typing import List, Literal, Union
 from colorama import Fore
-from outline import OutlineGenerator
-from utililty import check_and_load_state, json_fixer, model, sanitize_string
+from utililty import check_and_load_state, json_fixer, gpt35, sanitize_string, estimate_reading_time
 from parapgraphs import ParagraphWriter
 
 
@@ -144,88 +143,28 @@ class ArticleTitleGenerator:
 
 
 
-def stitch_h2_paragraphs(outline: dict, middle_image:str) -> str:
+def stitch_h2_paragraphs(outline: dict, middle_image:str=None, format:Literal["wp", "yt"]="wp") -> str:
     article_body = ""
     h2_titles = outline["h2_titles"]
     total_h2 = len(h2_titles)
 
     for i, h2 in enumerate(h2_titles):
         # If this is the last H2, add the image before it
-        if i == total_h2 - 1:
+        if i == total_h2 - 1 and format:
             article_body += f"{middle_image}\n\n"
         # Add H2 title
-        article_body += f"{to_wp_tags(h2['title'], 'h2')}\n"
+        article_body += f"{to_wp_tags(h2['title'], 'h2')}\n" if format=="wp" else "\n"
         # Add H2 content
-        article_body += f"{to_wp_tags(h2['content'], 'paragraph')}\n\n"
+        article_body += f"{to_wp_tags(h2['content'], 'paragraph')}\n\n" if format=="wp" else f"{h2['yt_script']}\n"
         # If there are H3 titles, add them
         if h2.get("h3_titles"):
             for h3 in h2["h3_titles"]:
                 # Add H3 title
-                article_body += f"{to_wp_tags(h3['title'], 'h3')}\n"
+                article_body += f"{to_wp_tags(h3['title'], 'h3')}\n" if format=="wp" else "\n"
                 # Add H3 content
-                article_body += f"{to_wp_tags(h3['content'], 'paragraph')}\n\n"
+                article_body += f"{to_wp_tags(h3['content'], 'paragraph')}\n\n" if format=="wp" else f"{h3['yt_script']}\n"
 
     return article_body.strip()
-
-
-@check_and_load_state(["introduction"])
-def get_intro(state):
-    print(Fore.LIGHTBLUE_EX + f'[+] Generating intro...')
-    outline = OutlineGenerator.print_formatted_outline(state["outline"])
-    llm_response = model.invoke([
-        ("system", IntroductionWriter.system),
-        ("human", IntroductionWriter.human.format(outline=outline, p_k=state["primary_keyword"], style=ParagraphWriter.style_instructions, schema=IntroductionWriter.schema)),
-    ]).content
-        
-    introduction = json_fixer(llm_response)
-    state["introduction"] = introduction.get("introduction", introduction)
-    return state
-
-
-@check_and_load_state(["conclusion"])
-def get_conclusion(state):
-    print(Fore.LIGHTBLUE_EX + f'[+] Generating conclusion...')
-    outline = OutlineGenerator.print_formatted_outline(state["outline"])
-    llm_response = model.invoke([
-        ("system", ConclusionWriter.system),
-        ("human", ConclusionWriter.human.format(outline=outline, style=ParagraphWriter.style_instructions, schema=ConclusionWriter.schema)),
-    ]).content
-        
-    conclusion = json_fixer(llm_response)
-    state["conclusion"] = conclusion
-    return state
-
-
-def get_article_directory(title):
-    sanitized_name = sanitize_string(title)
-    directory = f'articles/{"_".join(sanitized_name.split("_")[:5])}'
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    return directory
-
-
-@check_and_load_state(["article_title"])
-def get_title(state):
-    print(Fore.LIGHTBLUE_EX + f'[+] Generating title...')
-    outline = OutlineGenerator.print_formatted_outline(state["outline"])
-    llm_response = model.invoke([
-        ("system", ArticleTitleGenerator.system),
-        ("human", ArticleTitleGenerator.human.format(
-            outline=outline, p_k=state["primary_keyword"], 
-            sec_k=state["secondary_keywords"], 
-            style=ParagraphWriter.style_instructions, 
-            schema=ArticleTitleGenerator.schema
-            )
-        ),
-    ]).content
-        
-    title = json_fixer(llm_response)
-    state["article_title"] = title.get("title", title)
-    
-    directory = get_article_directory(state["article_title"])
-    state["article_directory"] = directory
-    
-    return state
 
 
 def save_article_as_markdown(article:str, article_directory):
@@ -295,13 +234,73 @@ def get_wp_images_snippets(state):
     return wp_image1, wp_image2
 
 
-@check_and_load_state(["full_article"])
+def get_article_directory(title):
+    sanitized_name = sanitize_string(title)
+    directory = f'articles/{"_".join(sanitized_name.split("_")[:5])}'
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    return directory
+
+
+@check_and_load_state(["article_title"])
+def get_title(state):
+    print(Fore.LIGHTBLUE_EX + f'[+] Generating title...')
+    outline = state["formatted_empty_outline"] #OutlineGenerator.get_formatted_outline(state["outline"])
+    llm_response = gpt35.invoke([
+        ("system", ArticleTitleGenerator.system),
+        ("human", ArticleTitleGenerator.human.format(
+            outline=outline, p_k=state["primary_keyword"], 
+            sec_k=state["secondary_keywords"], 
+            style=ParagraphWriter.style_instructions, 
+            schema=ArticleTitleGenerator.schema
+            )
+        ),
+    ]).content
+        
+    title = json_fixer(llm_response)
+    state["article_title"] = title.get("title", title)
+    
+    directory = get_article_directory(state["article_title"])
+    state["article_directory"] = directory
+    
+    return state
+
+
+@check_and_load_state(["introduction"])
+def get_intro(state):
+    print(Fore.LIGHTBLUE_EX + f'[+] Generating intro...')
+    outline = state["formatted_empty_outline"] #OutlineGenerator.get_formatted_outline(state["outline"])
+    llm_response = gpt35.invoke([
+        ("system", IntroductionWriter.system),
+        ("human", IntroductionWriter.human.format(outline=outline, p_k=state["primary_keyword"], style=ParagraphWriter.style_instructions, schema=IntroductionWriter.schema)),
+    ]).content
+        
+    introduction = json_fixer(llm_response)
+    state["introduction"] = introduction.get("introduction", introduction)
+    return state
+
+
+@check_and_load_state(["conclusion"])
+def get_conclusion(state):
+    print(Fore.LIGHTBLUE_EX + f'[+] Generating conclusion...')
+    outline = state["formatted_empty_outline"] #OutlineGenerator.get_formatted_outline(state["outline"])
+    llm_response = gpt35.invoke([
+        ("system", ConclusionWriter.system),
+        ("human", ConclusionWriter.human.format(outline=outline, style=ParagraphWriter.style_instructions, schema=ConclusionWriter.schema)),
+    ]).content
+        
+    conclusion = json_fixer(llm_response)
+    state["conclusion"] = conclusion
+    return state
+
+
+@check_and_load_state(["full_article", "reading_time", "needs_padding"])
 def finalize_article(state):
     print(Fore.GREEN + f'[+] Finalizing article...')
     intro = state["introduction"]
     conclusion = state["conclusion"]
     wp_image1, wp_image2 = get_wp_images_snippets(state)
-    article = stitch_h2_paragraphs(state["outline"], middle_image=wp_image2)
+    article = stitch_h2_paragraphs(state["bolded_outline"], middle_image=wp_image2)
 
     # Add Key points
     if not isinstance(conclusion['keypoints'], list):
@@ -310,11 +309,20 @@ def finalize_article(state):
 
     article_intro_concl = wp_image1 + "\n\n" + keypoints + "\n\n" + to_wp_tags(intro, "paragraph") + "\n\n" + article + f"\n\n{to_wp_tags('Conclusion', 'h2')}\n" + to_wp_tags(conclusion["conclusion"], "paragraph")
     article_intro_concl = re.sub(' +', ' ', article_intro_concl)
-    print(article_intro_concl)
+    article_intro_concl = re.sub(' ,', ',', article_intro_concl)
+    state["full_article"] = article_intro_concl
+    # print(article_intro_concl)
     
-    save_article_as_markdown(article_intro_concl, state["article_directory"])
+    # estimate reading time
+    minutes, seconds = estimate_reading_time(article_intro_concl)
+    state["reading_time"] = seconds
+    if seconds < 600:
+        state["needs_padding"] = True
+    else:
+        state["needs_padding"] = False
+    
+    # save_article_as_markdown(article_intro_concl, state["article_directory"])
     save_article_state_as_json(state, state["article_directory"])
     
-    state["full_article"] = article_intro_concl
     
     return state

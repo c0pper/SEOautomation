@@ -1,6 +1,6 @@
 from colorama import Fore
 from outline import OutlineGenerator
-from utililty import check_and_load_state, json_fixer, model
+from utililty import check_and_load_state, json_fixer, gpt35
 
 
 class CategoryGenerator:
@@ -37,8 +37,8 @@ class CategoryGenerator:
 @check_and_load_state(["categories"])
 def get_categories(state):
     print(Fore.LIGHTBLUE_EX + f'[+] Generating categories...')
-    outline = OutlineGenerator.print_formatted_outline(state["outline"])
-    llm_response = model.invoke([
+    outline = state["formatted_empty_outline"]
+    llm_response = gpt35.invoke([
         ("system", CategoryGenerator.system),
         ("human", CategoryGenerator.human.format(outline=outline, p_k=state["primary_keyword"], schema=CategoryGenerator.schema)),
     ]).content

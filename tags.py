@@ -1,6 +1,6 @@
 from colorama import Fore
 from outline import OutlineGenerator
-from utililty import check_and_load_state, json_fixer, model
+from utililty import check_and_load_state, json_fixer, gpt35
 
 
 class TagGenerator:
@@ -37,8 +37,8 @@ class TagGenerator:
 @check_and_load_state(["tags"])
 def get_tags(state):
     print(Fore.LIGHTBLUE_EX + f'[+] Generating tags...')
-    outline = OutlineGenerator.print_formatted_outline(state["outline"])
-    llm_response = model.invoke([
+    outline = state["formatted_empty_outline"]
+    llm_response = gpt35.invoke([
         ("system", TagGenerator.system),
         ("human", TagGenerator.human.format(outline=outline, p_k=state["primary_keyword"], schema=TagGenerator.schema)),
     ]).content

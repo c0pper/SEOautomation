@@ -4,7 +4,7 @@ from colorama import Fore
 from langchain_openai import ChatOpenAI
 from langchain_core.pydantic_v1 import BaseModel, Field
 from trend import get_news_for_trend, ask_trend, get_trends
-from utililty import check_and_load_state, json_fixer, model
+from utililty import check_and_load_state, json_fixer, gpt35, gpt4omini
 from langchain_core.prompts import ChatPromptTemplate
 
 
@@ -108,7 +108,7 @@ def get_topics(state):
 
     news_art_formatted = "\n-----\n".join([f"Article Title: {a['title']}\nArticle Snippet: {a['snippet']}" for a in news_articles_shortened][:4])
 
-    llm_response = model.invoke([
+    llm_response = gpt4omini.invoke([
         ("system", TopicsGenerator.system),
         ("human", TopicsGenerator.human.format(articles=news_art_formatted, schema=TopicsGenerator.schema)),
     ]).content

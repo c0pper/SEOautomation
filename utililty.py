@@ -44,9 +44,12 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 
 nlp = spacy.load("en_core_web_lg")
-model = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0)
+gpt35 = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0)
+gpt4omini = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 RIFIUTA_COOKIE_BUTTON_ID = "W0wltc"
 N_SOURCES_FROM_VECTORSTORE = 5
+NARRATOR_WPM = 140
+MIN_H2 = 4
 
 
 def scrape_google(query, search_type=None):
@@ -281,7 +284,7 @@ def _fix_json(invalid_json, errors: list):
         ("system", "You are a master JSON programmer."),
         ("human", human_msg)
     ]
-    response = model.invoke(messages).content
+    response = gpt35.invoke(messages).content
     return response
 
 
@@ -355,10 +358,10 @@ def check_and_load_state(required_keys):
 
 
 def check_web_search(state):
-    if "outline" not in state:
+    if "searched_outline" not in state:
         return False
     
-    outline = state["outline"]
+    outline = state["searched_outline"]
     
     for h2 in outline.get("h2_titles", []):
         if not h2.get("web_search"):
@@ -392,10 +395,10 @@ def check_and_load_web_search_state(func):
 
 
 def check_filled_outline(state):
-    if "outline" not in state:
+    if "filled_outline" not in state:
         return False
     
-    outline = state["outline"]
+    outline = state["filled_outline"]
     
     for h2 in outline.get("h2_titles", []):
         if not h2.get("content") or not h2.get("sources"):
@@ -436,10 +439,10 @@ def contains_links(content):
     return bool(url_pattern.search(content))
 
 def check_links_in_outline(state):
-    if "outline" not in state:
+    if "linked_outline" not in state:
         return False
     
-    outline = state["outline"]
+    outline = state["linked_outline"]
     
     for h2 in outline.get("h2_titles", []):
         if not contains_links(h2.get("content", "")):
@@ -502,7 +505,18 @@ def create_wordpress_post(title, content, site_id="93simon7.wordpress.com", tags
         return None
 
 
-
+def estimate_reading_time(script_text, words_per_min=180):
+    words = script_text.split()
+    
+    word_count = len(words)
+    
+    # Calculate the time in minutes
+    reading_time_minutes = word_count / words_per_min
+    
+    # Convert minutes to seconds for more precision
+    reading_time_seconds = reading_time_minutes * 60
+    
+    return reading_time_minutes, reading_time_seconds
 
 
 
